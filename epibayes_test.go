@@ -2,6 +2,7 @@ package epibayes
 
 import (
 	"log"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ func TestPOAugment(t *testing.T) {
 
 	s := time.Now()
 	ObservationsToPriorSample(po2, 0.5)
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 30000; i++ {
 		SampleStartingState(po2)
 
 		for i := 0; i < 99; i++ {
@@ -48,6 +49,63 @@ func TestPOAugment(t *testing.T) {
 	e := time.Now()
 	log.Println(e.Sub(s))
 	//log.Println(po.Prior, po.PriorLP, po.PosteriorSample, po.PosteriorLP)
-	log.Println(po2.Prior, po2.PriorLP, po2.PosteriorSample, po2.PosteriorLP)
+	//	log.Println(po2.Prior, po2.PriorLP, po2.PosteriorSample, po2.PosteriorLP)
 
+}
+
+func TestTransModel(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+
+	T := 1600
+	TotalPop := 30
+	gamma := 0.01
+	b := 0.1
+	a := 0.001
+	obs := []*PartialObserved{}
+	st := time.Now()
+	for i := 0; i < 10; i++ {
+
+		po := NewPartialObserved(T, []float64{1.0, 0.0, 0.0}, []int{1 + rand.Intn(T-1)}, nil)
+		ObservationsToPriorSample(po, gamma)
+		//	log.Println(po.Prior.Values)
+		obs = append(obs, po)
+	}
+
+	for i := 0; i < TotalPop-10; i++ {
+		po := NewPartialObserved(T, []float64{1.0, 0.0, 1.0}, nil, []int{rand.Intn(T)})
+		ObservationsToPriorSample(po, gamma)
+		obs = append(obs, po)
+	}
+
+	N := 1
+	//init step
+	infSeries := []float64{}
+	logProb := 0.0
+
+	for i := 0; i < N; i++ {
+		totalInf := 0.0
+		nextInf := 0.0
+		for _, o := range obs {
+			totalInf += SampleStartingState(o)
+		}
+		infSeries = append(infSeries, totalInf)
+		lambda := 1.0 - math.Exp(-((b*totalInf)+a)/float64(TotalPop))
+		for t := 0; t < T-1; t++ {
+			for _, o := range obs {
+				x := Step(o, t, lambda, gamma)
+				nextInf += x
+				if t == T-2 {
+					logProb += o.PosteriorLP
+				}
+			}
+
+			infSeries = append(infSeries, nextInf)
+			lambda = 1.0 - math.Exp(-((b*nextInf)+a)/float64(TotalPop))
+			nextInf = 0.0
+
+		}
+	}
+	en := time.Now()
+	log.Println(en.Sub(st))
+	log.Println(infSeries, logProb)
 }

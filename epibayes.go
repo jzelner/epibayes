@@ -2,7 +2,6 @@ package epibayes
 
 import (
 	"fmt"
-	//	"log"
 	"math"
 	"math/rand"
 	"strings"
@@ -168,7 +167,7 @@ func ObservationsToPriorSample(po *PartialObserved, gamma float64) {
 	}
 }
 
-func SampleStartingState(po *PartialObserved) {
+func SampleStartingState(po *PartialObserved) float64 {
 	po.PosteriorLP = 0.0
 	x := rand.Float64()
 	total := 0.0
@@ -188,20 +187,28 @@ func SampleStartingState(po *PartialObserved) {
 
 	po.PosteriorSample.Values[st][0] = 1.0
 	po.PosteriorLP += po.PriorLP + math.Log(pr)
+
+	if st == I {
+		return 1.0
+	}
+	return 0.0
 }
 
-func Step(po *PartialObserved, t int, infPr, recPr float64) {
+func Step(po *PartialObserved, t int, StoI, ItoR float64) float64 {
 	//Given the transition probabilities and priors, sample the 
 	//next step and calculate the transition probability
-
 	if po.PosteriorSample.Values[S][t] == 1 {
-		StoI := po.PosteriorSample.Values[S][t] * po.Prior.Values[I][t+1] * infPr
-		if StoI > 0.0 && rand.Float64() < StoI {
+		ConditionalStoI := po.Prior.Values[I][t+1] * StoI
+		ConditionalStoS := po.Prior.Values[S][t+1] * (1.0 - StoI)
+		total := ConditionalStoI + ConditionalStoS
+		ConditionalStoI = ConditionalStoI / total
+		ConditionalStoS = ConditionalStoS / total
+		if StoI > 0.0 && rand.Float64() < ConditionalStoI {
 			po.PosteriorSample.Values[S][t+1] = 0.0
 			po.PosteriorSample.Values[I][t+1] = 1.0
 			po.PosteriorSample.Values[R][t+1] = 0.0
 			po.PosteriorLP += math.Log(StoI)
-
+			return 1.0
 		} else {
 			po.PosteriorSample.Values[S][t+1] = 1.0
 			po.PosteriorSample.Values[I][t+1] = 0.0
@@ -210,8 +217,12 @@ func Step(po *PartialObserved, t int, infPr, recPr float64) {
 
 		}
 	} else if po.PosteriorSample.Values[I][t] == 1 {
-		ItoR := po.PosteriorSample.Values[I][t] * po.Prior.Values[R][t+1] * recPr
-		if ItoR > 0.0 && rand.Float64() < ItoR {
+		ConditionalItoR := po.Prior.Values[R][t+1] * ItoR
+		ConditionalItoI := po.Prior.Values[I][t+1] * (1.0 - ItoR)
+		total := ConditionalItoR + ConditionalItoI
+		ConditionalItoR /= total
+		ConditionalItoI /= total
+		if ItoR > 0.0 && rand.Float64() < ConditionalItoR {
 			po.PosteriorSample.Values[S][t+1] = 0.0
 			po.PosteriorSample.Values[I][t+1] = 0.0
 			po.PosteriorSample.Values[R][t+1] = 1.0
@@ -221,11 +232,12 @@ func Step(po *PartialObserved, t int, infPr, recPr float64) {
 			po.PosteriorSample.Values[I][t+1] = 1.0
 			po.PosteriorSample.Values[R][t+1] = 0.0
 			po.PosteriorLP += math.Log(1.0 - ItoR)
+			return 1.0
 		}
 	} else if po.PosteriorSample.Values[R][t] == 1 {
 		po.PosteriorSample.Values[S][t+1] = 0.0
 		po.PosteriorSample.Values[I][t+1] = 0.0
 		po.PosteriorSample.Values[R][t+1] = 1.0
 	}
-
+	return 0.0
 }
