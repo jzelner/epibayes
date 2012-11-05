@@ -2,8 +2,8 @@ package epibayes
 
 import (
 	"fmt"
+	"github.com/jzelner/gsl-cgo/randist"
 	"math"
-	"math/rand"
 	"strings"
 )
 
@@ -93,8 +93,8 @@ func NewPartialObserved(length int, startingProbs []float64, infObs []int, nonIn
 	return po
 }
 
-func GeometricSample(l float64) int {
-	return int(math.Ceil(rand.ExpFloat64() / l))
+func GeometricSample(l float64, rd *randist.RNG) int {
+	return int(math.Ceil(randist.ExponentialRandomFloat64(rd, 1.0/l)))
 }
 
 func GeometricInfectiousPeriodProposal(duration int, gamma float64) float64 {
@@ -103,15 +103,14 @@ func GeometricInfectiousPeriodProposal(duration int, gamma float64) float64 {
 	return rSampleProb * geomProb
 }
 
-func SampleGeometricInfectiousPeriod(obsTime int, gamma float64) (int, int) {
+func SampleGeometricInfectiousPeriod(obsTime int, gamma float64, rd *randist.RNG) (int, int) {
 	//Sample the duration of the infectious period
-	duration := GeometricSample(gamma)
-
+	duration := GeometricSample(gamma, rd)
 	//Now sample the offset for the observation, which could fall anywhere
 	//from [0, duration-1]
 
 	//If offset = 0, then start = 0, if offset = 3, then start = obsTime -3
-	start := obsTime - rand.Intn(duration)
+	start := obsTime - randist.UniformRandomInt(rd, duration)
 	end := start + duration
 
 	if start < 0 {
@@ -120,7 +119,7 @@ func SampleGeometricInfectiousPeriod(obsTime int, gamma float64) (int, int) {
 	return start, end
 }
 
-func ObservationsToPriorSample(po *PartialObserved, gamma float64) {
+func ObservationsToPriorSample(po *PartialObserved, gamma float64, rng *randist.RNG) {
 	po.PriorLP = 0.0
 
 	nonObsTimes := make(map[int]bool)
@@ -141,7 +140,7 @@ func ObservationsToPriorSample(po *PartialObserved, gamma float64) {
 	}
 
 	for _, io := range po.InfectionObservations {
-		s, e := SampleGeometricInfectiousPeriod(io, gamma)
+		s, e := SampleGeometricInfectiousPeriod(io, gamma, rng)
 		if e >= po.Prior.Len() {
 			e = po.Prior.Len() - 1
 		}
@@ -167,9 +166,9 @@ func ObservationsToPriorSample(po *PartialObserved, gamma float64) {
 	}
 }
 
-func SampleStartingState(po *PartialObserved) float64 {
+func SampleStartingState(po *PartialObserved, rd *randist.RNG) float64 {
 	po.PosteriorLP = 0.0
-	x := rand.Float64()
+	x := randist.UniformRandomFloat64(rd)
 	total := 0.0
 	var st int
 	var pr float64
@@ -194,7 +193,7 @@ func SampleStartingState(po *PartialObserved) float64 {
 	return 0.0
 }
 
-func Step(po *PartialObserved, t int, StoI, ItoR float64) float64 {
+func Step(po *PartialObserved, t int, StoI, ItoR float64, rng *randist.RNG) float64 {
 	//Given the transition probabilities and priors, sample the 
 	//next step and calculate the transition probability
 	if po.PosteriorSample.Values[S][t] == 1 {
@@ -203,7 +202,7 @@ func Step(po *PartialObserved, t int, StoI, ItoR float64) float64 {
 		total := ConditionalStoI + ConditionalStoS
 		ConditionalStoI = ConditionalStoI / total
 		ConditionalStoS = ConditionalStoS / total
-		if StoI > 0.0 && rand.Float64() < ConditionalStoI {
+		if StoI > 0.0 && randist.UniformRandomFloat64(rng) < ConditionalStoI {
 			po.PosteriorSample.Values[S][t+1] = 0.0
 			po.PosteriorSample.Values[I][t+1] = 1.0
 			po.PosteriorSample.Values[R][t+1] = 0.0
@@ -222,7 +221,7 @@ func Step(po *PartialObserved, t int, StoI, ItoR float64) float64 {
 		total := ConditionalItoR + ConditionalItoI
 		ConditionalItoR /= total
 		ConditionalItoI /= total
-		if ItoR > 0.0 && rand.Float64() < ConditionalItoR {
+		if ItoR > 0.0 && randist.UniformRandomFloat64(rng) < ConditionalItoR {
 			po.PosteriorSample.Values[S][t+1] = 0.0
 			po.PosteriorSample.Values[I][t+1] = 0.0
 			po.PosteriorSample.Values[R][t+1] = 1.0

@@ -1,6 +1,7 @@
 package epibayes
 
 import (
+	"github.com/jzelner/gsl-cgo/randist"
 	"log"
 	"math"
 	"math/rand"
@@ -21,8 +22,10 @@ func TestPOConstructor(t *testing.T) {
 
 func TestGeometricSample(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	log.Println(GeometricSample(0.6))
-	s, e := SampleGeometricInfectiousPeriod(10, 0.2)
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
+	//log.Println(GeometricSample(0.6, rng))
+	s, e := SampleGeometricInfectiousPeriod(10, 0.2, rng)
 	log.Println(s, e)
 	log.Println(GeometricInfectiousPeriodProposal(e-s, 0.2))
 }
@@ -30,6 +33,8 @@ func TestGeometricSample(t *testing.T) {
 func TestPOAugment(t *testing.T) {
 	log.Println("PO AUG")
 	rand.Seed(time.Now().UnixNano())
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
 
 	//	po := NewPartialObserved(100, []float64{1.0, 0.0, 0.0}, []int{10}, []int{50, 80})
 
@@ -38,12 +43,12 @@ func TestPOAugment(t *testing.T) {
 	po2 := NewPartialObserved(1500, []float64{0.5, 0.0, 0.5}, nil, []int{50, 80})
 
 	s := time.Now()
-	ObservationsToPriorSample(po2, 0.5)
+	ObservationsToPriorSample(po2, 0.5, rng)
 	for i := 0; i < 30000; i++ {
-		SampleStartingState(po2)
+		SampleStartingState(po2, rng)
 
 		for i := 0; i < 99; i++ {
-			Step(po2, i, 0.3, 0.5)
+			Step(po2, i, 0.3, 0.5, rng)
 		}
 	}
 	e := time.Now()
@@ -56,6 +61,9 @@ func TestPOAugment(t *testing.T) {
 func TestTransModel(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
+
 	T := 1600
 	TotalPop := 30
 	gamma := 0.01
@@ -66,14 +74,14 @@ func TestTransModel(t *testing.T) {
 	for i := 0; i < 10; i++ {
 
 		po := NewPartialObserved(T, []float64{1.0, 0.0, 0.0}, []int{1 + rand.Intn(T-1)}, nil)
-		ObservationsToPriorSample(po, gamma)
+		ObservationsToPriorSample(po, gamma, rng)
 		//	log.Println(po.Prior.Values)
 		obs = append(obs, po)
 	}
 
 	for i := 0; i < TotalPop-10; i++ {
 		po := NewPartialObserved(T, []float64{1.0, 0.0, 1.0}, nil, []int{rand.Intn(T)})
-		ObservationsToPriorSample(po, gamma)
+		ObservationsToPriorSample(po, gamma, rng)
 		obs = append(obs, po)
 	}
 
@@ -86,13 +94,13 @@ func TestTransModel(t *testing.T) {
 		totalInf := 0.0
 		nextInf := 0.0
 		for _, o := range obs {
-			totalInf += SampleStartingState(o)
+			totalInf += SampleStartingState(o, rng)
 		}
 		infSeries = append(infSeries, totalInf)
 		lambda := 1.0 - math.Exp(-((b*totalInf)+a)/float64(TotalPop))
 		for t := 0; t < T-1; t++ {
 			for _, o := range obs {
-				x := Step(o, t, lambda, gamma)
+				x := Step(o, t, lambda, gamma, rng)
 				nextInf += x
 				if t == T-2 {
 					logProb += o.PosteriorLP
