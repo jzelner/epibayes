@@ -2,6 +2,7 @@ package epibayes
 
 import (
 	"github.com/jzelner/gsl-cgo/randist"
+	tu "github.com/jzelner/timeutil"
 	"log"
 	"math"
 	"math/rand"
@@ -116,4 +117,83 @@ func TestTransModel(t *testing.T) {
 	en := time.Now()
 	log.Println(en.Sub(st))
 	log.Println(infSeries, logProb)
+}
+
+func TestSIRMassAction(t *testing.T) {
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
+	uo := NewUnobservedMassAction(1500, 4000, 4000, []float64{0.9, 0.1, 0.0})
+	s := time.Now()
+	for i := 0; i < 100; i++ {
+		SIRInitialize(uo, rng)
+		for i := 0; i < 1499; i++ {
+			SIRStep(uo, i, 0.5, 0.3, rng)
+		}
+	}
+	e := time.Now()
+	log.Println(uo.SamplingLP, e.Sub(s))
+
+}
+
+func TestHybridSIR(t *testing.T) {
+	gamma := 0.1
+	beta := 0.01
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
+
+	T := 1500
+
+	po := []*PartialObserved{}
+	for i := 0; i < 4; i++ {
+		o := NewPartialObserved(T, []float64{1.0, 0.0, 0.0}, []int{1 + randist.UniformRandomInt(rng, T-1)}, nil)
+		po = append(po, o)
+	}
+	for i := 0; i < 35; i++ {
+		o := NewPartialObserved(T, []float64{1.0, 0.0, 1.0}, nil, []int{1 + randist.UniformRandomInt(rng, T-1)})
+		po = append(po, o)
+	}
+	h := NewHybridSIR(T, 100, po, []float64{1.0, 0.0, 0.0}, rng)
+	s := time.Now()
+
+	total := []float64{h.Initialize(gamma)}
+	e := time.Now()
+
+	for i := 0; i < T-1; i++ {
+		total = append(total, h.Step(i, beta, 2.0, gamma))
+	}
+	log.Println(total)
+	e2 := time.Now()
+	log.Println(h.LogProbability(), e.Sub(s), e2.Sub(e))
+}
+
+func TestTimeConversion(t *testing.T) {
+	startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	times := []time.Time{time.Now()}
+	log.Println(IntegerOffsets(startTime, times, tu.DAY))
+}
+
+func TestRandomIndividualHistory(t *testing.T) {
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
+	start := time.Date(1999, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(1999, time.January, 15, 0, 0, 0, 0, time.UTC)
+	log.Println(RandomIndividualHistory("MANZE", true, start, end, tu.DAY, rng))
+}
+
+func TestHybridSIRFromPatchHistory(t *testing.T) {
+	rng := randist.NewRNG(randist.RAND48)
+	rng.SetSeed(int(time.Now().UnixNano()))
+
+	s := time.Date(1999, time.January, 1, 0, 0, 0, 0, time.UTC)
+	e := time.Date(1999, time.January, 15, 0, 0, 0, 0, time.UTC)
+	ph := NewPatchHistory("BORBON", 500, s, e, []float64{1.0, 0.0, 0.0})
+	for i := 0; i < 10; i++ {
+		ph.Observations = append(ph.Observations, RandomIndividualHistory("MANZE", true, s, e, tu.DAY, rng))
+	}
+	hs := HybridSIRFromPatchHistory(*ph, rng)
+	hs.Initialize(0.5)
+	for i := 0; i < 98; i++ {
+		log.Println(hs.Step(0, 0.5, 0.01, 0.5))
+	}
+	log.Println(hs)
 }
