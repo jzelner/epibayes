@@ -122,6 +122,7 @@ type PartialObserved struct {
 	PriorLP                  float64
 	PosteriorSample          StateMatrix
 	PosteriorLP              float64
+	ProposalLP               float64
 }
 
 func NewPartialObserved(length int, startingProbs []float64, infObs []int, nonInfObs []int) *PartialObserved {
@@ -131,6 +132,7 @@ func NewPartialObserved(length int, startingProbs []float64, infObs []int, nonIn
 	po.NonInfectionObservations = nonInfObs
 	po.Prior = *NewStateMatrix(length, "S", "I", "R")
 	po.PosteriorSample = *NewStateMatrix(length, "S", "I", "R")
+	po.ProposalLP = 0.0
 	return po
 }
 
@@ -227,6 +229,7 @@ func SampleStartingState(po *PartialObserved, rd *randist.RNG) float64 {
 
 	po.PosteriorSample.Values[st][0] = 1.0
 	po.PosteriorLP += po.PriorLP + math.Log(pr)
+	po.ProposalLP += math.Log(pr)
 
 	if st == I {
 		return 1.0
