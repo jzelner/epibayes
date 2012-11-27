@@ -3,6 +3,7 @@ package patch
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 )
 
@@ -67,6 +68,7 @@ func (d *DecayingInfectionSource) SetPhi(px float64) {
 func (d *DecayingInfectionSource) calculateRate() {
 	d.cachedRate = d.alpha * d.popSize * math.Exp(-d.phi*d.distance)
 }
+
 func (d *DecayingInfectionSource) At(x int) float64 {
 	return d.cachedRate
 }
@@ -106,7 +108,7 @@ type InfectionSource interface {
 	At(int) float64
 }
 
-//SIRModel has an embedded network
+//SIRModel has an embedded spatial network
 //in it, as well as a counter, T, 
 //for the current time
 type SIRModel struct {
@@ -159,12 +161,19 @@ func (m *SIRModel) Step(p Parameters, externalInf map[string]InfectionSource) fl
 	return totalI
 }
 
-func (m *SIRModel) LogProbability() float64 {
-	logLL := 0.0
+type ProposalValues struct {
+	LogProposalProbability float64
+	LogSamplingProbability float64
+}
+
+func (m *SIRModel) LogProbability() ProposalValues {
+	pv := ProposalValues{0.0, 0.0}
 	for _, n := range m.Nodes {
-		logLL += n.P.LogProbability()
+		pv.LogSamplingProbability += n.P.LogProbability()
+		pv.LogProposalProbability += n.P.LogProposalProbability()
+		log.Printf("PATCH PROPOSAL = %0.4f, PATCH SAMPLING PROB = %0.4f\n", n.P.LogProposalProbability(), n.P.LogProbability())
 	}
-	return logLL
+	return pv
 }
 
 type Patch interface {
@@ -173,6 +182,7 @@ type Patch interface {
 	Size() float64
 	CurrentI() float64
 	LogProbability() float64
+	LogProposalProbability() float64
 }
 
 type PatchNode struct {

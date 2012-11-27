@@ -133,6 +133,7 @@ func NewPartialObserved(length int, startingProbs []float64, infObs []int, nonIn
 	po.Prior = *NewStateMatrix(length, "S", "I", "R")
 	po.PosteriorSample = *NewStateMatrix(length, "S", "I", "R")
 	po.ProposalLP = 0.0
+	po.PosteriorLP = 0.0
 	return po
 }
 
@@ -164,6 +165,8 @@ func SampleGeometricInfectiousPeriod(obsTime int, gamma float64, rd *randist.RNG
 
 func ObservationsToPriorSample(po *PartialObserved, gamma float64, rng *randist.RNG) {
 	po.PriorLP = 0.0
+	po.PosteriorLP = 0.0
+	po.ProposalLP = 0.0
 
 	nonObsTimes := make(map[int]bool)
 	for _, nt := range po.NonInfectionObservations {
@@ -205,7 +208,10 @@ func ObservationsToPriorSample(po *PartialObserved, gamma float64, rng *randist.
 			po.Prior.Values[R][t] = 1.0
 		}
 
-		po.PriorLP += math.Log(1.0 / float64(e-s))
+		//Get the probability of sampling this particular infectious period
+		startProb := math.Log(GeometricInfectiousPeriodProposal(e-s, gamma))
+		po.PriorLP += startProb
+		po.ProposalLP += startProb
 	}
 }
 
@@ -228,6 +234,10 @@ func SampleStartingState(po *PartialObserved, rd *randist.RNG) float64 {
 	}
 
 	po.PosteriorSample.Values[st][0] = 1.0
+
+	//Add the probability of the sampled starting
+	//conditions to the posterior and the proposal
+	//values
 	po.PosteriorLP += po.PriorLP + math.Log(pr)
 	po.ProposalLP += math.Log(pr)
 
@@ -250,14 +260,22 @@ func Step(po *PartialObserved, t int, StoI, ItoR float64, rng *randist.RNG) floa
 			po.PosteriorSample.Values[S][t+1] = 0.0
 			po.PosteriorSample.Values[I][t+1] = 1.0
 			po.PosteriorSample.Values[R][t+1] = 0.0
+
+			//Add the unconditional log-probability to the posterior 
+			//log-probability
 			po.PosteriorLP += math.Log(StoI)
+
+			//And then add the conditional log-probability to the
+			//sampling log-probability
+			po.ProposalLP += math.Log(ConditionalStoI)
 			return 1.0
 		} else {
 			po.PosteriorSample.Values[S][t+1] = 1.0
 			po.PosteriorSample.Values[I][t+1] = 0.0
 			po.PosteriorSample.Values[R][t+1] = 0.0
-			po.PosteriorLP += math.Log(1.0 - StoI)
 
+			po.PosteriorLP += math.Log(1.0 - StoI)
+			po.ProposalLP += math.Log(1.0 - ConditionalStoI)
 		}
 	} else if po.PosteriorSample.Values[I][t] == 1 {
 		ConditionalItoR := po.Prior.Values[R][t+1] * ItoR
@@ -270,11 +288,13 @@ func Step(po *PartialObserved, t int, StoI, ItoR float64, rng *randist.RNG) floa
 			po.PosteriorSample.Values[I][t+1] = 0.0
 			po.PosteriorSample.Values[R][t+1] = 1.0
 			po.PosteriorLP += math.Log(ItoR)
+			po.ProposalLP += math.Log(ConditionalItoR)
 		} else {
 			po.PosteriorSample.Values[S][t+1] = 0.0
 			po.PosteriorSample.Values[I][t+1] = 1.0
 			po.PosteriorSample.Values[R][t+1] = 0.0
 			po.PosteriorLP += math.Log(1.0 - ItoR)
+			po.ProposalLP += math.Log(1.0 - ConditionalItoR)
 			return 1.0
 		}
 	} else if po.PosteriorSample.Values[R][t] == 1 {
@@ -291,6 +311,7 @@ type UnobservedMassAction struct {
 	totalN                int
 	N                     int
 	SamplingLP            float64
+	ProposalLP            float64
 }
 
 func NewUnobservedMassAction(length, N, unobsN int, initProbs []float64) *UnobservedMassAction {
@@ -319,7 +340,8 @@ func SIRInitialize(uo *UnobservedMassAction, rd *randist.RNG) float64 {
 			total += uo.StartingProbabilities[j]
 			if total >= x {
 				uo.States.Values[j][0] += 1
-				uo.SamplingLP += math.Log(uo.StartingProbabilities[j])
+				sp := math.Log(uo.StartingProbabilities[j])
+				uo.SamplingLP += sp
 				break
 			}
 		}
@@ -450,4 +472,17 @@ func (h *HybridSIR) LogProbability() float64 {
 	}
 	logLL += h.Unobserved.SamplingLP
 	return logLL
+}
+
+func (h *HybridSIR) LogProposalProbability() float64 {
+	propLL := 0.0
+	for _, po := range h.PartialObservations {
+		propLL += po.ProposalLP
+	}
+
+	//Sampling probability is same as proposal prob
+	//for the unobserved, since it is not conditioned
+	//on anything
+	propLL += h.Unobserved.SamplingLP
+	return propLL
 }
