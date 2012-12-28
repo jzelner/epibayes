@@ -6,6 +6,9 @@ import theano
 import theano.tensor as T
 import numpy as np
 
+#Import the random streams module and seed the RNG
+trng = T.shared_randomstreams.RandomStreams(1234)
+
 #Set up vectors, etc to represent 
 #observations, indexes into the observation
 #vector and the distribution of outcomes
@@ -57,6 +60,19 @@ b_result, b_updates = theano.scan(fn = backwardIteration, outputs_info = final_p
 #backward probabilities
 b_r = T.concatenate((final_probs_tensor.dimshuffle('x',0), b_result))
 b_fn = theano.function(inputs = [final_probs_tensor, tmat_tensor, emission_tensor, obs_vec], outputs = b_r)
+
+def equalsOne(val, index):
+	return index, theano.scan_module.until(val == 1)
+
+
+#Define a backward sampling iteration that takes the following
+#as arguments: 1) the last sampled element, 2) the forward probabilities for
+#the current step, 3) the transition matrix. Use the notation of Scott et al. 
+#to denote h as the sampled value of a latent state and fp as a forward probability
+#vector
+def backwardSamplingIteration(h, fp):
+	x = trng.uniform()
+	result, _ = theano.scan(fn = lambda val : )
 
 #Now define a scan that computes the smoothed probabilities
 
