@@ -43,7 +43,7 @@ expose = theano.function([contact, I], exposure)
 #matrix returned by expose, initial state occupation probabilities,
 #and the states of individuals in the population
 #and returns a log likelihood of the states in the state matrix
-def stateLLStep(lastState, thisState, predictors, lastProb, g):
+def stateLLStep(lastState, thisState, predictors, g):
 	#If we're in state 0 (susceptible), then the rate of transition
 	#out is going to be dictated by b or 1-b. If we're in 1 (infectious)
 	#the rate of transition out is going to be dictated by g & 1-g.
@@ -52,7 +52,7 @@ def stateLLStep(lastState, thisState, predictors, lastProb, g):
 
 	#If the state is the same as the last, then nothing happened and the prob
 	#is 1-eventprob, otherwise it's the event probability.
-	nextProb = lastProb + T.log(T.switch(T.eq(thisState,0), 1.0 - event_prob, event_prob))
+	nextProb = T.log(T.switch(T.eq(thisState,0), 1.0 - event_prob, event_prob))
 
 	return nextProb
 
@@ -63,7 +63,7 @@ g = T.dscalar("state_autocorr")
 
 # outputs_info = T.as_tensor_variable(np.asarray(0, np.float64))
 
-def stateSeriesProb(ip, sp, ss, lp, g):
+def stateSeriesProb(ip, sp, ss, g):
 	#Get the probability of the first element of the state series
 	initProb = 1.0 / (1.0 + T.exp(-ip))
 	start_prob = T.log(T.switch(T.eq(ss[0], 0), 1.0 - ip, ip))
@@ -71,17 +71,14 @@ def stateSeriesProb(ip, sp, ss, lp, g):
 	#Define a scan op that goes over the remaining elements of the state
 	#series and applies the stateLLStep to each one
 
-	outputs_info = T.as_tensor_variable(np.asarray(0, lp.dtype))
-	result, updates = theano.scan(fn = stateLLStep, outputs_info = outputs_info, non_sequences = [g], sequences = [ss[0:-1], ss[1:], sp])
+	result, updates = theano.map(fn = stateLLStep, non_sequences = [g], sequences = [ss[0:-1], ss[1:], sp])
 
-	final_result = result[-1]
-	return lp + final_result
+	return T.sum(result)
 
-outputs_info = T.as_tensor_variable(np.asarray(0, initPredictors.dtype))
 
-all_series_prob, all_updates = theano.scan(fn = stateSeriesProb, non_sequences = [g], sequences = [initPredictors, statePredictors, stateMatrix], outputs_info = outputs_info)
+all_series_prob, all_updates = theano.map(fn = stateSeriesProb, non_sequences = [g], sequences = [initPredictors, statePredictors, stateMatrix])
 
-total_prob = all_series_prob[-1]
+total_prob = T.sum(all_series_prob)
 
 seriesProb = theano.function(inputs = [initPredictors, statePredictors, stateMatrix, g], outputs = total_prob, updates = all_updates)
 
@@ -107,9 +104,9 @@ if __name__ == '__main__':
 	print(imat)
 	
 	print("Exposures")
-	print(expose(grav, imat))
 	s = time.time()
 	for i in xrange(10000):
-		print(seriesProb(initLogit, grav, imat, 0.9))
+		expose(grav, imat)
+		seriesProb(initLogit, grav, imat, 0.9)
 	e = time.time()
 	print(e-s)
