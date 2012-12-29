@@ -1,7 +1,8 @@
 import theano
 import theano.tensor as T
+from theano import printing
 import numpy as np
-
+import time
 #The distance matrix gives the pairwise
 #distances between locations
 distance = T.dmatrix('distance')
@@ -22,6 +23,7 @@ gravity = theano.function([population, distance, sender_tau, receiver_tau, dista
 contact = T.dmatrix('adjacency')
 I = T.dmatrix("Infected")
 foi = T.dmatrix("FOI")
+initPredictors = T.dvector("init_predictors")
 
 #The dot product of the adjacency matrix
 #and the underlying state matrix gives
@@ -36,6 +38,56 @@ exposure = (T.dot(contact, I))*(1.0-I)
 #individual.
 expose = theano.function([contact, I], exposure)
 
+
+#StateLogProb is a function that takes the exposure 
+#matrix returned by expose, initial state occupation probabilities,
+#and the states of individuals in the population
+#and returns a log likelihood of the states in the state matrix
+def stateLLStep(lastState, thisState, predictors, lastProb, g):
+	#If we're in state 0 (susceptible), then the rate of transition
+	#out is going to be dictated by b or 1-b. If we're in 1 (infectious)
+	#the rate of transition out is going to be dictated by g & 1-g.
+	logit = predictors + (lastState * g) 
+	event_prob = 1.0 / (1.0 + T.exp(-logit))
+
+	#If the state is the same as the last, then nothing happened and the prob
+	#is 1-eventprob, otherwise it's the event probability.
+	nextProb = lastProb + T.log(T.switch(T.eq(thisState,0), 1.0 - event_prob, event_prob))
+
+	return nextProb
+
+initPredictors = T.dvector("init_predictors")
+statePredictors = T.dmatrix("state_predictors")
+stateMatrix = T.dmatrix("state_matrix")
+g = T.dscalar("state_autocorr")
+
+# outputs_info = T.as_tensor_variable(np.asarray(0, np.float64))
+
+def stateSeriesProb(ip, sp, ss, lp, g):
+	#Get the probability of the first element of the state series
+	initProb = 1.0 / (1.0 + T.exp(-ip))
+	start_prob = T.log(T.switch(T.eq(ss[0], 0), 1.0 - ip, ip))
+
+	#Define a scan op that goes over the remaining elements of the state
+	#series and applies the stateLLStep to each one
+
+	outputs_info = T.as_tensor_variable(np.asarray(0, lp.dtype))
+	result, updates = theano.scan(fn = stateLLStep, outputs_info = outputs_info, non_sequences = [g], sequences = [ss[0:-1], ss[1:], sp])
+
+	final_result = result[-1]
+	return lp + final_result
+
+outputs_info = T.as_tensor_variable(np.asarray(0, initPredictors.dtype))
+
+all_series_prob, all_updates = theano.scan(fn = stateSeriesProb, non_sequences = [g], sequences = [initPredictors, statePredictors, stateMatrix], outputs_info = outputs_info)
+
+total_prob = all_series_prob[-1]
+
+seriesProb = theano.function(inputs = [initPredictors, statePredictors, stateMatrix, g], outputs = total_prob, updates = all_updates)
+
+
+
+
 if __name__ == '__main__':
 	
 	#The adj
@@ -45,11 +97,19 @@ if __name__ == '__main__':
 
 	distance_mat = np.array([[1., 10., 50.], [4., 1., 30.], [10.0, 15.0, 1.]])
 	population = np.array([100., 20., 30.])
-
+	initLogit = np.array([-0.05, -0.0005, -0.0001])
 	grav = gravity(population, distance_mat, 0.5, 0.1, 2.0)
 
+	print("Gravity")
 	print(grav)
 
+	print("Infectiousness")
 	print(imat)
 	
+	print("Exposures")
 	print(expose(grav, imat))
+	s = time.time()
+	for i in xrange(10000):
+		print(seriesProb(initLogit, grav, imat, 0.9))
+	e = time.time()
+	print(e-s)
