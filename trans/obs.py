@@ -1,3 +1,7 @@
+#This file contains symbolic tensors and functions for calculating the likelihood
+#of a set of positive/negative observations given an underlying state matrix
+#and the probabilities of obtaining false positives and false negatives
+
 import theano
 import theano.tensor as T
 import numpy as np
@@ -24,9 +28,6 @@ def singleStateObservation(st, obs, tp, tn):
 	#a true positive, i.e. p(positive) | positive_obs
 	#tn is the probability of finding a 
 	#true negative, p(negative) | negative_obs
-
-
-
 	obs_type = T.switch(T.eq(obs, 1.0), tp, tn)
 	obs_prob = T.switch(T.eq(obs, -1.0), 0.0, T.log(T.switch(T.eq(st, obs), obs_type, 1.0 - obs_type)))
 	return obs_prob

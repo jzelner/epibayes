@@ -18,26 +18,27 @@ def inputs():
 	return (B,G,states, contact_states, transition_mat, transmission_mat)
 
 
-# def theanomain():
+def theanomain():
 	
-# 	contact_states = T.dvector("contact_states")
+	contact_states = T.dvector("contact_states")
 
-# 	transition_mat = T.dmatrix("transition_mat")
-# 	transmission_mat = T.dmatrix("transmission_mat")
+	transition_mat = T.dmatrix("transition_mat")
+	transmission_mat = T.dmatrix("transmission_mat")
 	
-# 	residual_mat = 1.0 - T.exp(-(transition_mat + (transmission_mat*contact_states)))
-# 	markov_mat = residual_mat + T.diag((1.0 - T.sum(residual_mat, axis = 1)))
+	residual_mat = 1.0 - T.exp(-(transition_mat + (transmission_mat*contact_states)))
+	markov_mat = residual_mat + T.diag((1.0 - T.sum(residual_mat, axis = 1)))
 
-# 	exposureFunc = theano.function([contact_states, transition_mat, transmission_mat], markov_mat)
+	exposureFunc = theano.function([contact_states, transition_mat, transmission_mat], markov_mat)
 
-# 	_, _, _, cs, tm, trm = inputs()
-# 	print(exposureFunc(cs, tm, trm))
+	_, _, _, cs, tm, trm = inputs()
+	print(exposureFunc(cs, tm, trm))
 
 def main():
 	B,G,states, contact_states, transition_mat, transmission_mat = inputs()
 
 	for i in xrange(len(contact_states)):
 		print(transmission_mat[i]*contact_states[i])
+		
 	# print(transition_mat+transmission_mat)
 
 	q = 1.0 - np.exp(-(transition_mat + (transmission_mat*contact_states)))
