@@ -19,7 +19,7 @@
 
         <header>
           <h1>Epibayes</h1>
-          <h2>(Rudimentary) tools for epidemiological modeling w/Bayesian stats</h2>
+          <h2>Tools for epidemiological modeling w/Bayesian stats</h2>
         </header>
 
         <section id="downloads" class="clearfix">
@@ -33,10 +33,11 @@
         <section id="main_content">
           <h1>Epibayes</h1>
 
-<p>This is an experiment in using Theano for the statistical analysis of dynamic systems,with a focus on epidemiological modeling. Files in the /hmm directory show a simple implementation of a hidden markov model, using both Theano and pure Numpy.</p>
+<p>This is an experiment in using <a href="http://deeplearning.net/software/theano/">Theano</a> and <a href="https://github.com/pymc-devs/pymc">PyMC</a> for the statistical analysis of individual-based models of epidemiological dynamics.</p>
 
-<p>Files in the /trans directory are the beginning of a spatial transmission model, 
-but this is decidedly a work in progress.</p>
+<p>Files in the /hmm directory show a simple implementation of a hidden markov model, using both Theano and pure Numpy.</p>
+
+<p>Files in the /trans directory are the beginning of a spatial transmission model in which transmission occurs between patches connected by a <a href="http://en.wikipedia.org/wiki/Gravity_model">gravity model</a>. The trans.mcmc module contains wrappers for using these elements within PyMC and a custom step method for sampling the missing states of a latent patch occupancy model.</p>
         </section>
 
         <footer>
