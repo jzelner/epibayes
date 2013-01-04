@@ -32,6 +32,24 @@ def Observation(obs, state, true_positive, true_negative):
 
 	return o
 
+def timeConstantPredictor(init_cond, predictors, num_steps):
+	#Tile for all steps except the 0-th
+	tiledPredictors = np.tile(predictors, (num_steps, 1)).T
+
+	num_row = len(init_cond)
+	#Then append the initial conditions to the start of the row
+	tiledPredictors = np.append(np.reshape(init_cond, (num_row,1)), tiledPredictors,1)
+
+	return tiledPredictors
+
+def TimeConstantPredictor(ic, predictors, num_steps):
+	p = pymc.Deterministic(name = "Time constant predictors", doc = "Expand constant predictors", eval = timeConstantPredictor, parents = {"init_cond" : ic, "predictors" : predictors, "num_steps" : num_steps}, trace = False, verbose = 0, cache_depth = 2, dtype = float, plot = False )
+
+	return p
+
+#A subclass of pymc.Metropolis that does simple Metropolis-Hastings sampling
+#for the state matrix. The unobserved_indices argument provides the (row, col)
+#IDs of observations that can be manipulated by the sampler as a list of tuples.
 class StateMetropolis(pymc.Metropolis):
 
 	def __init__(self, stochastic, sample_p, unobserved_indices, *args, **kwargs):
@@ -78,10 +96,15 @@ if __name__ == '__main__':
 
 	autocorr = np.array([0.01, 0.1, 0.05])
 
-
 	#Create a pymc deterministic that relates population 
 	#and distances to the gravity matrix
 	g = Gravity(population, distance_mat, 0.001, 0.5, 0.5, 0.5)
+
+	#Expand time constant predictors and initial conditions using a 
+	#deterministic
+	tc = TimeConstantPredictor(initLogit, np.array([-1.0, -2.0, -3.0]), len(imat[0])-1)
+
+	print(tc.value)
 
 	#Create a pymc stochastic that gives the log-likelihood
 	#of the observations, given the rate of false positives and
