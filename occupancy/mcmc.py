@@ -76,6 +76,9 @@ if __name__ == '__main__':
 	#Value of observation matrix
 	omat = np.array([[1., 0., 0.,0.], [0., 1., 1.,0.], [0.,1.,0.,1.]])
 
+	autocorr = np.array([0.01, 0.1, 0.05])
+
+
 	#Create a pymc deterministic that relates population 
 	#and distances to the gravity matrix
 	g = Gravity(population, distance_mat, 0.001, 0.5, 0.5, 0.5)
@@ -88,8 +91,8 @@ if __name__ == '__main__':
 	#A pymc stochastic that gives the log-likelihood of the underlying
 	#state configuration, given the gravity matrix, other predictors
 	#and the logit for within-patch autocorrelation
-	s = State(imat, 0.001*g.value, initLogit, np.zeros_like(imat), 0.5)
-	print(s.value)
+	s = State(imat, 0.001*g.value, initLogit, np.zeros_like(imat), autocorr)
+
 	#Try instantiating a StateMetropolis step method with an instance of
 	#state
 	sm = StateMetropolis(s, 0.1, [(0,0), (1,1)])
