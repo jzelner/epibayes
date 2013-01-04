@@ -3,6 +3,7 @@ import epibayes
 from epibayes.occupancy import trans, obs
 import random
 import copy
+import numpy as np
 
 def grav(population, distance, phi, sender_tau, receiver_tau, distance_tau):
 	g = trans.gravity(population, distance, sender_tau, receiver_tau, distance_tau)
