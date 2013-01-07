@@ -43,7 +43,7 @@ initPredictors = T.dvector("init_predictors")
 #matrix and an infection state matrix and returns
 #the amount of exposure on each susceptible 
 #individual.
-exposure = theano.function([contact, I], (T.dot(contact, I))*(1.0-I))
+exposure = theano.function([contact, I], T.dot(contact, I))
 
 
 #stateLLStep takes an exposure matrix, initial state occupation probabilities,
@@ -136,4 +136,4 @@ if __name__ == '__main__':
 
 
 	#Get the probability of the states in imat by calling seriesProb 
-	multiSeriesProb(initLogit, e, imat, g)
+	multiSeriesProb(initLogit, e[:,1:], imat, g)

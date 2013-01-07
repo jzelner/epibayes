@@ -33,18 +33,13 @@ def Observation(obs, state, true_positive, true_negative):
 
 	return o
 
-def timeConstantPredictor(init_cond, predictors, num_steps):
+def timeConstantPredictor(predictors, num_steps):
 	#Tile for all steps except the 0-th
 	tiledPredictors = np.tile(predictors, (num_steps, 1)).T
-
-	num_row = len(init_cond)
-	#Then append the initial conditions to the start of the row
-	tiledPredictors = np.append(np.reshape(init_cond, (num_row,1)), tiledPredictors,1)
-
 	return tiledPredictors
 
-def TimeConstantPredictor(ic, predictors, num_steps):
-	p = pymc.Deterministic(name = "Time constant predictors", doc = "Expand constant predictors", eval = timeConstantPredictor, parents = {"init_cond" : ic, "predictors" : predictors, "num_steps" : num_steps}, trace = False, verbose = 0, cache_depth = 2, dtype = float, plot = False )
+def TimeConstantPredictor(predictors, num_steps):
+	p = pymc.Deterministic(name = "Time constant predictors", doc = "Expand constant predictors", eval = timeConstantPredictor, parents = {"predictors" : predictors, "num_steps" : num_steps}, trace = False, verbose = 0, cache_depth = 2, dtype = float, plot = False )
 
 	return p
 
