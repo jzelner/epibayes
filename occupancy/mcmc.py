@@ -17,31 +17,41 @@ def Gravity(population, distance, phi, sender_tau, receiver_tau, distance_tau):
 
 def stateObs(value, gravity, init_predictors, predictors, autocorr):
 	e = trans.exposure(gravity, value)
-	v = trans.multiSeriesProb(init_predictors, predictors + e, value, autocorr)
+	num_col = e.shape[1]
+	pr = predictors + e[:,0:num_col-1]
+	#print("initial conditions", init_predictors)
+	#print("Autocorrelation", autocorr)
+
+	v = trans.multiSeriesProb(init_predictors, pr, value, autocorr)
+	#print("STATE LL", v)
 	return v
 
-def State(state, gravity, init_predictors, predictors, autocorr):
-	s = pymc.Stochastic(logp = stateObs, name = "State likelihood", doc = "Log-likelihood of underlying state variables", value = state, parents = {"gravity": gravity, "init_predictors" : init_predictors, "predictors":predictors, "autocorr":autocorr}, dtype = float, plot = False, cache_depth = 2, verbose = 0)
+def State(name, state, gravity, init_predictors, predictors, autocorr):
+	s = pymc.Stochastic(logp = stateObs, name = name, doc = "Log-likelihood of underlying state variables", value = state, parents = {"gravity": gravity, "init_predictors" : init_predictors, "predictors":predictors, "autocorr":autocorr}, dtype = float, plot = False, cache_depth = 2, verbose = 0)
 
 	return s
 
 def matObs(value, state, true_positive, true_negative):
-	return obs.matObs(state, value, true_positive, true_negative)
+	obsLL =  obs.matObs(state, value, true_positive, true_negative)
+	#print("Obs LL" , obsLL)
+	return obsLL
 
-def Observation(obs, state, true_positive, true_negative):
-	o = pymc.Stochastic(name = "Observation process", doc = "Mapping from underlying state to observation", logp = matObs, parents = {"state":state, "true_positive" : true_positive, "true_negative": true_negative}, trace = False, observed = True, value = obs, verbose = 0, cache_depth = 2, dtype = float, plot = False)
+def Observation(name, obs, state, true_positive, true_negative):
+	o = pymc.Stochastic(name = name, doc = "Mapping from underlying state to observation", logp = matObs, parents = {"state":state, "true_positive" : true_positive, "true_negative": true_negative}, trace = False, observed = True, value = obs, verbose = 0, cache_depth = 2, dtype = float, plot = False)
 
 	return o
 
 def timeConstantPredictor(predictors, num_steps):
 	#Tile for all steps except the 0-th
-	tiledPredictors = np.tile(predictors, (num_steps, 1)).T
+	pr = [p for p in predictors]
+	tiledPredictors = np.tile(pr, (num_steps, 1)).T
 	return tiledPredictors
 
 def TimeConstantPredictor(predictors, num_steps):
 	p = pymc.Deterministic(name = "Time constant predictors", doc = "Expand constant predictors", eval = timeConstantPredictor, parents = {"predictors" : predictors, "num_steps" : num_steps}, trace = False, verbose = 0, cache_depth = 2, dtype = float, plot = False )
 
 	return p
+
 
 #A subclass of pymc.Metropolis that does simple Metropolis-Hastings sampling
 #for the state matrix. The unobserved_indices argument provides the (row, col)
@@ -57,9 +67,11 @@ class StateMetropolis(pymc.Metropolis):
 
 	def propose(self):
 		p = min(max(0.01, self.adaptive_scale_factor*self.sample_p), 0.99)
+		
 		num_to_sample = max(1, np.random.binomial(self.num_changeable, p))
-		self.last_sampled_indices = zip(*random.sample(self.unobserved_indices, num_to_sample))
 
+		self.last_sampled_indices = zip(*random.sample(self.unobserved_indices, num_to_sample))
+		#print("Proposal probability", p, "sampling", num_to_sample, self.last_sampled_indices, self.unobserved_indices)
 		self.last_value = self.stochastic.value
 		val = np.copy(self.stochastic.value)
 		val[self.last_sampled_indices] = 1.0 - self.last_value[self.last_sampled_indices]
@@ -100,7 +112,6 @@ if __name__ == '__main__':
 	#deterministic
 	tc = TimeConstantPredictor(initLogit, np.array([-1.0, -2.0, -3.0]), len(imat[0])-1)
 
-	print(tc.value)
 
 	#Create a pymc stochastic that gives the log-likelihood
 	#of the observations, given the rate of false positives and
