@@ -1,5 +1,6 @@
 import numpy as np
-
+import pymc
+import time
 
 def randomPathogens(n_pathogens, n_steps, n_loc, p):
 	pathogen_presence = [np.reshape(np.random.binomial(1, p, n_pathogens*n_steps), (n_pathogens, n_steps)) for i in xrange(n_locations)]	
@@ -9,7 +10,7 @@ def randomWeights(n_loc):
 	weights = np.reshape(np.random.uniform(size = n_locations**2), (n_locations, n_locations))
 	return weights
 
-def PairwiseExposure(pathogens, weights):
+def pairwiseExposure(pathogens, weights):
 	#Accumulate each location's exposure in a pre-allocated
 	#matrix
 	exposures = [np.zeros_like(p) for p in pathogens]
@@ -28,42 +29,64 @@ def PairwiseExposure(pathogens, weights):
 
 	return exposures
 
-def SeparatePastAndFutureState(state):
-	pastStates = [s[:,0:s.shape[1]] for s in state]
-	futureStates = [s[:,1:s.shape[1]-1] for s in state]
+def PairwiseExposure(name, pathogens, weights):
+	pe = pymc.Deterministic(name = name, doc = "Calculates pairwise exposures between sets of locations.", eval = pairwiseExposure, parents = {"pathogens" : pathogens, "weights" : weights})
+	return pe
+
+def separatePastAndFutureState(state):
+	pastStates = [s[:,0:s.shape[1]-1] for s in state]
+	futureStates = [s[:,1:s.shape[1]] for s in state]
 	ic = [s[:,0] for s in state]
 	return(ic, pastStates, futureStates)
 
-def WithinLocationLag(pathogens, autocorr):
+def SeparatePastAndFutureState(name, state):
+	s = pymc.Deterministic(name = name, doc = "Extracts initial conditions, lagged states and future states", eval = separatePastAndFutureState, parents = {"state" : state})
+	return s
+
+def withinLocationLag(pathogens, autocorr):
 	lag = [np.zeros_like(p) for p in pathogens]
 	for i, a in enumerate(autocorr):
 		lag[i] = lag[i] + a*pathogens[i]
 	return lag
 
-def AddInitialConditions(ic, toLag):
-	rVals = []
-	for i,m in enumerate(toLag):
-		num_row = m.shape[0]
-		fr = np.array([[ic[i]] for j in xrange(num_row)])
-		rVals.append(np.append(fr, m,1))
-	return rVals
+def WithinLocationLag(name, pathogens, autocorr):
+	wl = pymc.Deterministic(name = name, doc = "Gets logit for lag within a location", eval = withinLocationLag, parents = {"pathogens":pathogens, "autocorr":autocorr})
+	return wl
 
-def IndependentPredictor(pathogens, predictors):
+def independentPredictor(pathogens, predictors):
 	ip = [pr*np.ones_like(pathogens[i]) for i,pr in enumerate(predictors)]
 	return ip
 
+def IndependentPredictor(name, pathogens, predictors):
+	ip = pymc.Deterministic(name = name, doc = "Independent predictors", eval = independentPredictor, parents = {"pathogens":pathogens, "predictors": predictors})
+	return ip
+
+def predictedStateProbability(value, ex, ac, iv):
+	total_prob = []
+	tp = 0.0
+	for i,x in enumerate(value):
+		tp += pymc.bernoulli_like(x, pymc.invlogit(ex[i] + ac[i] + iv[i]))
+	return tp
+
+def PredictedStateProbability(name, ex, ac, iv, value = None):
+	ps = pymc.Stochastic(name = name, doc = "Probability of next state", logp = predictedStateProbability, parents = {"ex" : ex, "ac":ac, "iv":iv}, value = value)
+	return ps
+
 if __name__ == '__main__':
 	#Make a random matrix representing pathogens over time in each village
-	n_pathogens = 5
-	n_times = 10
-	n_locations = 3
+	n_pathogens = 100
+	n_times = 8
+	n_locations = 25
 
 	r_path = randomPathogens(n_pathogens, n_times, n_locations, 0.5)
-	initial_conditions, last_path, next_path = SeparatePastAndFutureState(r_path)
 	w = randomWeights(n_locations)
+	s = SeparatePastAndFutureState("Separator", r_path)
 
-	pe = PairwiseExposure(last_path, w)
-	lag = WithinLocationLag(last_path, np.random.uniform(size = n_locations))
-	ip = IndependentPredictor(r_path, np.random.uniform(-5, 5,size = n_locations))
+	initial_conditions, last_path, next_path = (s.value[0], s.value[1], s.value[2])
 
-	print(lag)
+	pe = PairwiseExposure("Pairwise exposure", last_path, w)
+	wl = WithinLocationLag("Lag", last_path, np.random.uniform(size = n_locations))
+	ip = IndependentPredictor("Independent predictors", last_path, np.random.uniform(-5, 5,size = n_locations))
+
+	ps = PredictedStateProbability("MANZE", ip, wl, pe, value = next_path)
+	print(ps.logp)
