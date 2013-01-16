@@ -44,7 +44,7 @@ def separatePastAndFutureState(state):
 	return {"IC":ic, "PS":pastStates, "FS":futureStates}
 
 def SeparatePastAndFutureState(name, state):
-	s = pymc.Deterministic(name = name, doc = "Extracts initial conditions, lagged states and future states", eval = separatePastAndFutureState, parents = {"state" : state})
+	s = pymc.Deterministic(name = name, doc = "Extracts initial conditions, lagged states and future states", eval = separatePastAndFutureState, parents = {"state" : state}, trace = False, plot = False)
 	return s
 
 def withinLocationLag(pathogens, autocorr):
@@ -54,7 +54,7 @@ def withinLocationLag(pathogens, autocorr):
 	return np.array(lag)
 
 def WithinLocationLag(name, pathogens, autocorr):
-	wl = pymc.Deterministic(name = name, doc = "Gets logit for lag within a location", eval = withinLocationLag, parents = {"pathogens":pathogens, "autocorr":autocorr})
+	wl = pymc.Deterministic(name = name, doc = "Gets logit for lag within a location", eval = withinLocationLag, parents = {"pathogens":pathogens, "autocorr":autocorr}, trace = False, plot = False)
 	return wl
 
 def independentPredictor(pathogens, predictors):
@@ -75,14 +75,14 @@ def predictedStateProbability(value, ex, ac, iv, fs):
 #ex = external exposure, ac = within-location autocorrelation,
 #iv = independent variables
 def PredictedStateProbability(name, ex, ac, iv, fs, value = 0.0):
-	ps = pymc.Stochastic(name = name, doc = "Probability of next state", logp = predictedStateProbability, parents = {"ex" : ex, "ac":ac, "iv":iv, "fs" : fs}, value = value, dtype = float, observed = True)
+	ps = pymc.Stochastic(name = name, doc = "Probability of next state", logp = predictedStateProbability, parents = {"ex" : ex, "ac":ac, "iv":iv, "fs" : fs}, value = value, dtype = float, observed = True, trace = False)
 	return ps
 
 def cs_logp(value):
 	return 0.0
 
 def CompleteState(name, s):
-	cs = pymc.Stochastic(name = name, doc = "Placeholder for total system state that facilitates manipulation by mcmc.", trace = False, cache_depth = 2, parents = {}, value = s, logp = cs_logp)
+	cs = pymc.Stochastic(name = name, doc = "Placeholder for total system state that facilitates manipulation by mcmc.", plot = False, trace = False, cache_depth = 2, parents = {}, value = s, logp = cs_logp)
 	return cs
 
 
