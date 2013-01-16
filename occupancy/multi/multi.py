@@ -62,7 +62,7 @@ def independentPredictor(pathogens, predictors):
 	return ip
 
 def IndependentPredictor(name, pathogens, predictors):
-	ip = pymc.Deterministic(name = name, doc = "Independent predictors", eval = independentPredictor, parents = {"pathogens":pathogens, "predictors": predictors})
+	ip = pymc.Deterministic(name = name, doc = "Independent predictors", eval = independentPredictor, parents = {"pathogens":pathogens, "predictors": predictors}, trace = False, plot = False)
 	return ip
 
 def predictedStateProbability(value, ex, ac, iv, fs):

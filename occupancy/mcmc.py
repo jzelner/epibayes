@@ -27,7 +27,7 @@ def stateObs(value, gravity, init_predictors, predictors, autocorr):
 	return v
 
 def State(name, state, gravity, init_predictors, predictors, autocorr):
-	s = pymc.Stochastic(logp = stateObs, name = name, doc = "Log-likelihood of underlying state variables", value = state, parents = {"gravity": gravity, "init_predictors" : init_predictors, "predictors":predictors, "autocorr":autocorr}, dtype = float, plot = False, cache_depth = 2, verbose = 0)
+	s = pymc.Stochastic(logp = stateObs, name = name, doc = "Log-likelihood of underlying state variables", value = state, parents = {"gravity": gravity, "init_predictors" : init_predictors, "predictors":predictors, "autocorr":autocorr}, dtype = float, plot = False, trace = False, cache_depth = 2, verbose = 0)
 
 	return s
 
