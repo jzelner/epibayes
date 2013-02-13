@@ -57,13 +57,9 @@ A = np.array(
 #A = np.array([[0,1],[1,0]], dtype=int)
 
 # Transmission Matrix
-E_S = np.array(
-	[[0,0],[0,0]], dtype=int
-	)
-
+E_S = np.array([[0,0],[0,0]], dtype=int)
 E_I = np.array([[0,1],[0,0]], dtype=int)
 
 E = np.array([E_S, E_I], dtype=int)
-#print A.shape
 
-print X_S*np.dot(A,X_I)
+print beta*X_S*np.dot(A,X_I)
