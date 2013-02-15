@@ -87,12 +87,43 @@ def tmatrix(epsilon, gamma):
 					[0.0, 0.0, 0.0, 0.0]])
 	return tmat
 
-def TransitionMatrix(name, epsilon, gamma, trace = False):
+def StaticTransitionMatrix(name, epsilon, gamma, trace = False):
 	return pymc.Deterministic(name = name, doc = "TransitionMatrix", parents = {"epsilon": epsilon, "gamma":gamma}, eval = tmatrix,cache_depth = 2, trace = trace)
 
 def tmat_test():
-	tm = TransitionMatrix("TM", 0.5, 0.5)
+	tm = StaticTransitionMatrix("TM", 0.5, 0.5)
 	print("Transition Matrix", tm.value)
+
+##########################################
+#Deterministic that generates a list of completed transition
+#matrices for groups from the static transition matrix
+#and exposures
+def full_tmat(stm, exposure):
+	return sp_np.group_tmats(exposure, stm)
+
+def FullTransitionMatrix(name, stm, exposure, trace = False):
+	return pymc.Deterministic(name = name, doc = "FullTransitionMatrix", parents = {"stm": stm, "exposure":exposure}, eval = full_tmat, trace = trace)
+
+def full_tm_test():
+
+	l0_b = 0.02
+	l1_b = 0.2
+	e = 0.5
+	g = 0.5
+
+	x = np.array([[2,2,2,3,3,3],
+			[0,1,2,2,2,2],
+			[0,0,0,1,2,2],
+			[0,0,0,0,0,0]])
+	groups = [np.array([0,1]), np.array([2,3])]
+
+	ma = MassActionExposure("MA", l0_b, x)
+	l0_ge = GroupedExposures("L0_groups", l0_b, x, groups)	
+	l1_ge = GroupedExposures("L1_groups", l1_b, x, groups)
+	l1_ce = CorrectedGroupExposures("Corr_L1", ma, l0_ge, l1_ge)
+	stm = StaticTransitionMatrix("TM", e, g)
+	ftm = FullTransitionMatrix("Full", stm, l1_ce)
+	print("Full Transition Matrix:", ftm.value)
 
 ##########################################
 #Field potential giving logp of state for groups, given
@@ -106,6 +137,7 @@ def main():
 	ge_test()
 	cge_test()
 	tmat_test()
+	full_tm_test()
 
 if __name__ == '__main__':
 	main()
