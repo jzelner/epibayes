@@ -55,6 +55,11 @@ def group_exposure(x, b0, bg, groups, infstate = 2):
 	#sum these with top-level exposures
 	return g_ex_ma + g_ex
 
+def corrected_group_exposures(ma_exposure, l1_l0_exposure, l1_exposure):
+	corrected_l0 = np.array([ma_exposure - l1_l0 for l1_l0 in l1_l0_exposure])
+	return corrected_l0 + l1_exposure
+
+
 #Takes a matrix of exposures (rows correspond to groups, 
 #columns to times) and a static transition matrix consisting
 #of transition rates. Returns a list of transition matrices
@@ -104,7 +109,7 @@ def sampling_probabilities(x, tmat):
 
 def main():
 	tm, x, groups = setup_states()
-	ge = group_exposure(x, 0.009, 0.05, groups)
+	ge = group_exposure(x, 0.009, 0.5, groups)
 	gm = group_tmats(ge, tm)
 	for i in xrange(100):
 		sp = 0.0
