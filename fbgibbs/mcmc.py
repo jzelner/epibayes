@@ -8,7 +8,7 @@ def sm_logp(value):
 	return 0.0
 
 def StateMatrix(name, sm, trace = False):
-	return pymc.Stochastic(name = name, doc = "State Matrix", value = sm, observed = False, cache_depth = 2, parents = {}, trace = trace, logp = sm_logp)
+	return pymc.Stochastic(name = name, doc = "State Matrix", value = sm, observed = False, cache_depth = 2, parents = {}, trace = trace, logp = sm_logp, dtype = int)
 
 def sm_test():
 	x = np.array([[2,2,2,3,3,3],
@@ -105,10 +105,9 @@ def FullTransitionMatrix(name, stm, exposure, trace = False):
 	return pymc.Deterministic(name = name, doc = "FullTransitionMatrix", parents = {"stm": stm, "exposure":exposure}, eval = full_tmat, trace = trace)
 
 def full_tm_test():
-
-	l0_b = 0.02
+	l0_b = 0.9
 	l1_b = 0.2
-	e = 0.5
+	e = 0.01
 	g = 0.5
 
 	x = np.array([[2,2,2,3,3,3],
@@ -128,7 +127,76 @@ def full_tm_test():
 ##########################################
 #Field potential giving logp of state for groups, given
 #exposures
-# def GroupSamplingProbability(name, sm, )
+def group_sampling_prob(sm, ftm):
+	logp = 0.0
+	for g in ftm:
+		logp += sp_np.sampling_probabilities(sm, g) 
+	return logp
+
+def GroupSamplingProbability(name, sm, ftm):
+	return pymc.Potential(name = name, doc = "GroupSamplingProbability", parents = {"sm":sm, "ftm":ftm}, logp = group_sampling_prob, cache_depth = 2)
+
+def gr_sp_test():
+	l0_b = 0.02
+	l1_b = 0.2
+	e = 0.9
+	g = 0.5
+
+	x = np.array([[2,2,2,3,3,3],
+			[0,1,2,2,2,2],
+			[0,0,0,1,2,2],
+			[0,0,0,0,0,0]])
+	groups = [np.array([0,1]), np.array([2,3])]
+
+	ma = MassActionExposure("MA", l0_b, x)
+	l0_ge = GroupedExposures("L0_groups", l0_b, x, groups)	
+	l1_ge = GroupedExposures("L1_groups", l1_b, x, groups)
+	l1_ce = CorrectedGroupExposures("Corr_L1", ma, l0_ge, l1_ge)
+	stm = StaticTransitionMatrix("TM", e, g)
+	ftm = FullTransitionMatrix("Full", stm, l1_ce)
+	gsp = GroupSamplingProbability("GSP", x, ftm)
+	print("Group sampling prob", gsp.logp)
+
+############################################
+#Field potential for likelihood contribution of 
+#uninfected individuals with only l0 contacts
+def InfectionEscape(name, n, exposure):
+	return pymc.Potential(name = name, doc = "InfectionEscape", parents = {"n": n, "exposure": exposure}, cache_depth = 2, logp = sp_np.escape_exposure) 
+
+def inf_escape_test():
+	l0_b = 0.02
+	n = 100
+	x = np.array([[2,2,2,3,3,3],
+			[0,1,2,2,2,2],
+			[0,0,0,1,2,2],
+			[0,0,0,0,0,0]])
+	groups = [np.array([0,1]), np.array([2,3])]
+	ma = MassActionExposure("MA", l0_b, x)
+	ie = InfectionEscape("InfectionEscape", n, ma)
+	print("Infection Escape lp:", ie.logp)
+
+############################################
+#Field potential for initial infection
+def init_infection(p_inf, sm, num_non_inf, new_inf_state):
+	#extract the first column of the state matrix,
+	#and count the number of values equal to the 
+	#infection state
+	num_init_inf = np.sum(sm[:,0] == new_inf_state)
+	num_init_non_inf = (len(sm[:,0]) - num_init_inf) + num_non_inf
+	return (np.log(p_inf)*num_init_inf)+(np.log(1.-p_inf)*num_init_non_inf)
+
+def InitialInfection(name, p_inf, sm, num_non_inf, new_inf_state = 1):
+	return pymc.Potential(name = name, doc = "InitialInfection", parents = {"p_inf":p_inf, "sm":sm, "num_non_inf": num_non_inf, "new_inf_state": new_inf_state}, logp = init_infection)
+
+def init_inf_test():
+	p_inf = 0.02
+	x = np.array([[2,2,2,3,3,3],
+		[1,1,2,2,2,2],
+		[0,0,0,1,2,2],
+		[0,0,0,0,0,0]])
+	num_non_inf = 100
+	init_inf = InitialInfection("init_inf", p_inf, x, num_non_inf)
+	print("Initial Infection Logp:", init_inf.logp)
 
 def main():
 	#Test state matrix stochastic
@@ -138,6 +206,9 @@ def main():
 	cge_test()
 	tmat_test()
 	full_tm_test()
+	gr_sp_test()
+	inf_escape_test()
+	init_inf_test()
 
 if __name__ == '__main__':
 	main()

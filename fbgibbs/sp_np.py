@@ -93,7 +93,7 @@ def group_tmats(exposure, tmat):
 					gmat[t,j] *= lp
 				gmat[t,j,j] = 1.-lp
 		gmats.append(gmat)
-	return gmats
+	return np.array(gmats)
 
 #Takes a matrix of states and the transition matrix for individuals
 #in that matrix and returns the log-likelihood of 
@@ -104,8 +104,15 @@ def sampling_probabilities(x, tmat):
 	for t in xrange(num_col-1):
 		from_states = x[:,t]
 		to_states = x[:,t+1]
+		#print(tmat)
+		#print(t, from_states, to_states)
 		s_prob += np.sum(np.log(tmat[t,from_states,to_states]))
 	return s_prob
+
+#takes a vector of exposures and returns num_exposed * (1 - p_inf)
+def escape_exposure(n, exposure):
+	e_prob = n * np.sum(-exposure)
+	return e_prob
 
 def main():
 	tm, x, groups = setup_states()
