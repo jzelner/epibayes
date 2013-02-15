@@ -1,6 +1,8 @@
 import pymc
 import numpy as np
 import sp_np
+import random
+import hmm_np as hmm
 
 ###################################
 #Stochastic for state matrix. 
@@ -38,6 +40,7 @@ def ma_test():
 ###################################
 #Deterministic for within-group exposures
 def grouped_exposures(sm, b, groups, infstate):
+	print("B", b)
 	return sp_np.grouped_exposure(sm, b, groups, infstate = infstate)
 
 def GroupedExposures(name, b, sm, groups, infstate = 2, trace = False):
@@ -59,7 +62,7 @@ def corrected_gr(ma, l1_l0, l1):
 	return sp_np.corrected_group_exposures(ma, l1_l0, l1)
 
 def CorrectedGroupExposures(name, ma, l1_l0, l1, trace = False):
-	return pymc.Deterministic(name = name, doc = "CorrectedGroupExposures", parents = {"ma": ma, "l1_l0":l1_l0, "l1":l1_l0}, eval = corrected_gr, cache_depth = 2, trace = trace)
+	return pymc.Deterministic(name = name, doc = "CorrectedGroupExposures", parents = {"ma": ma, "l1_l0":l1_l0, "l1":l1}, eval = corrected_gr, cache_depth = 2, trace = trace)
 
 def cge_test():
 	l0_b = 0.02
@@ -81,6 +84,7 @@ def cge_test():
 #Deterministic that that embeds scalar parameters into a transition 
 #matrix
 def tmatrix(epsilon, gamma):
+	print("e: %0.2f, g: %0.2f" % (epsilon, gamma))
 	tmat = np.array([[0.0, 0.0, 0.0, 0.0], 
 					[0.0, 0.0, epsilon, 0.0],
 					[0.0, 0.0, 0.0, gamma],
@@ -130,7 +134,8 @@ def full_tm_test():
 def group_sampling_prob(sm, ftm):
 	logp = 0.0
 	for g in ftm:
-		logp += sp_np.sampling_probabilities(sm, g) 
+		logp += sp_np.sampling_probabilities(sm, g)
+	print("GRSP", logp) 
 	return logp
 
 def GroupSamplingProbability(name, sm, ftm):
@@ -198,6 +203,106 @@ def init_inf_test():
 	init_inf = InitialInfection("init_inf", p_inf, x, num_non_inf)
 	print("Initial Infection Logp:", init_inf.logp)
 
+##################################################
+#Metropolis-Hastings step method for underlying state
+class StateMetropolis(pymc.Metropolis):
+
+	def __init__(self, stochastic, groups, init_probs, emission, obs, tmat, *args, **kwargs):
+		self.init_probs = init_probs
+		self.emission = emission
+		self.obs = obs
+		self.tmat = tmat
+		#get row indices of individuals whose state can be manipulated
+		#at this point, just check and see if the 0th item is a 0; if not
+		#then it can be manipulated
+		pymc.Metropolis.__init__(self, stochastic, *args, **kwargs)
+		self.sample_indices = []
+		for i,row in enumerate(self.obs):
+			if -1 in row:
+				self.sample_indices.append(i)
+
+		#Create a reverse lookup to get the group index from the row index
+		self.group_lookup = {}
+		for i,g in enumerate(groups):
+			for j,m in enumerate(g):
+				self.group_lookup[m] = i
+
+		#print(self.group_lookup)
+
+
+	def propose(self):
+		#print("proposing")
+
+		#copy the state matrix
+		self.old_value = np.copy(self.stochastic.value)
+		new_value = np.copy(self.stochastic.value)
+		#print(self.adaptive_scale_factor)
+		num_to_sample = 3*max(1, int(np.round(self.adaptive_scale_factor)))
+		#print("Num to sample", num_to_sample)
+
+		#draw an individual to sample
+		sample_index = random.sample(self.sample_indices,num_to_sample)
+
+		self.hf = 0.0
+		for si in sample_index:
+			#grab the observation 
+			obs = self.obs[si]
+
+			#get the transition matrix for the sampled individual
+			tm = self.tmat.value[self.group_lookup[si]]
+			st = new_value[si]
+
+			s_x, lv, tv = hmm.fbg_propose(st, self.init_probs, self.emission, obs, tm)
+			self.hf += lv-tv
+
+			#print(obs)
+			#print(s_x)
+
+			new_value[si] = s_x
+		self.value = new_value
+
+	def hastings_factor(self):
+		return self.hf
+
+	def reject(self):
+		#print("rejecting")
+		self.value = self.old_value
+
+def state_metropolis_test():
+	l0_b = 0.02
+	l1_b = 0.2
+	e = 0.9
+	g = 0.5
+
+	obs = np.array([[2,-1,-1,-1,-1,-1],
+		[-1,1,2,-1,-1,-1],
+		[0,0,0,1,2,-1],
+		[0,0,0,0,0,0]])
+
+	x = np.array([[2,2,2,3,3,3],
+		[1,1,2,2,2,2],
+		[0,0,0,1,2,2],
+		[0,0,0,0,0,0]])
+
+	emission = np.identity(4)
+
+	groups = [np.array([0,1]), np.array([2,3])]
+
+	st = StateMatrix("SM", x)
+	init_probs = np.ones(4)/4.
+
+	groups = [np.array([0,1]), np.array([2,3])]
+	ma = MassActionExposure("MA", l0_b, x)
+	l0_ge = GroupedExposures("L0_groups", l0_b, x, groups)	
+	l1_ge = GroupedExposures("L1_groups", l1_b, x, groups)
+	l1_ce = CorrectedGroupExposures("Corr_L1", ma, l0_ge, l1_ge)
+	stm = StaticTransitionMatrix("TM", e, g)
+	ftm = FullTransitionMatrix("Full", stm, l1_ce)
+
+	sm = StateMetropolis(st, groups, init_probs, emission, obs, ftm)
+	sm.propose()
+	sm.reject()	
+
 def main():
 	#Test state matrix stochastic
 	sm_test()
@@ -209,6 +314,7 @@ def main():
 	gr_sp_test()
 	inf_escape_test()
 	init_inf_test()
+	state_metropolis_test()
 
 if __name__ == '__main__':
 	main()
