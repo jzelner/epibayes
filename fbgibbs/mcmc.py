@@ -3,6 +3,7 @@ import numpy as np
 import sp_np
 import random
 import hmm_np as hmm
+import weibull
 
 ###################################
 #Stochastic for state matrix. 
@@ -54,6 +55,50 @@ def ge_test():
 	groups = [np.array([0,1]), np.array([2,3])]
 	ge = GroupedExposures("Grouped", 0.2, x, groups)
 	print("Grouped Exposure Values", ge.value)
+
+
+####################################
+#Deterministic for weibull within-group inf profiles
+def grouped_weibull_profile(sm, groups, b, q1, x1, q2, x2, infstate):
+	return weibull.grouped_weibull_exposure(sm, groups, b, q1, x1, q2, x2, infstate = infstate)
+
+def GroupedWeibullExposures(name, sm, groups, b, q1, x1, q2, x2, infstate = 2, trace = False):
+	return pymc.Deterministic(name = name, doc = "GroupedWeibullExposure", parents = {"b":b, "q1":q1, "x1":x1, "q2":q2, "x2":x2, "sm":sm, "infstate":infstate, "groups": groups}, trace = trace, cache_depth = 2, eval = grouped_weibull_profile)
+
+def gw_test():
+	x = np.array([[2,2,2,2,2,2],
+			[0,0,1,2,2,2],
+			[0,0,0,0,1,2],
+			[0,0,0,0,0,0]])
+	q1 = 0.5
+	q2 = 0.9
+	x1 = 1.0
+	x2 = 3.0
+
+	groups = [np.array([0,1]), np.array([2,3])]
+	ge = GroupedWeibullExposures("Grouped", x, groups, 0.2, q1, x1, q2, x2)
+	print("Grouped Weibull Values", ge.value)	
+
+####################################
+#Deterministic for weibull mass-action inf profiles
+def ma_weibull_profile(sm, b, q1, x1, q2, x2, infstate):
+	return weibull.mass_action_weibull_exposure(sm, b, q1, x1, q2, x2, infstate = infstate)
+
+def MassActionWeibullExposures(name, sm, b, q1, x1, q2, x2, infstate = 2, trace = False):
+	return pymc.Deterministic(name = name, doc = "GroupedWeibullExposure", parents = {"b":b, "q1":q1, "x1":x1, "q2":q2, "x2":x2, "sm":sm, "infstate":infstate}, trace = trace, cache_depth = 2, eval = ma_weibull_profile)
+
+def maw_test():
+	x = np.array([[2,2,2,2,2,2],
+			[0,0,1,2,2,2],
+			[0,0,0,0,1,2],
+			[0,0,0,0,0,0]])
+	q1 = 0.5
+	q2 = 0.9
+	x1 = 1.0
+	x2 = 3.0
+
+	ge = MassActionWeibullExposures("Grouped", x, 0.2, q1, x1, q2, x2)
+	print("Mass Action Weibull Values", ge.value)	
 
 ###################################
 #Deterministic adding and correcting mass-action and group
@@ -237,7 +282,7 @@ class StateMetropolis(pymc.Metropolis):
 		self.old_value = np.copy(self.stochastic.value)
 		new_value = np.copy(self.stochastic.value)
 		#print(self.adaptive_scale_factor)
-		num_to_sample = 3*max(1, int(np.round(self.adaptive_scale_factor)))
+		num_to_sample = max(1, int(np.round(self.adaptive_scale_factor)))
 		#print("Num to sample", num_to_sample)
 
 		#draw an individual to sample
@@ -253,12 +298,15 @@ class StateMetropolis(pymc.Metropolis):
 			st = new_value[si]
 
 			s_x, lv, tv = hmm.fbg_propose(st, self.init_probs, self.emission, obs, tm)
+			print("Obs:"), obs
+			print("From:", st)
+			print("To:", s_x)
 			self.hf += lv-tv
-
+			new_value[si] = s_x
 			#print(obs)
 			#print(s_x)
-
-			new_value[si] = s_x
+		print("HF =", self.hf)
+			
 		self.value = new_value
 
 	def hastings_factor(self):
@@ -315,6 +363,8 @@ def main():
 	inf_escape_test()
 	init_inf_test()
 	state_metropolis_test()
+	gw_test()
+	maw_test()
 
 if __name__ == '__main__':
 	main()

@@ -29,6 +29,9 @@ def setup_states():
 
 	return (tmat, x, groups)
 
+##########################################
+#Exposure functions for time-constant infectiousness
+#likely with a modeled endpoint (i.e., SEIR, SIR model)
 def mass_action_exposure(x, b, infstate = 2):
 	return b*np.sum(x == infstate, axis = 0)
 
@@ -57,6 +60,7 @@ def group_exposure(x, b0, bg, groups, infstate = 2):
 
 def corrected_group_exposures(ma_exposure, l1_l0_exposure, l1_exposure):
 	corrected_l0 = np.array([ma_exposure - l1_l0 for l1_l0 in l1_l0_exposure])
+	print(corrected_l0)
 	return corrected_l0 + l1_exposure
 
 
