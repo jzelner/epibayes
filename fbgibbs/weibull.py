@@ -69,10 +69,18 @@ def mass_action_weibull_exposure(x, b, q1, x1, q2, x2, infstate = 2):
 	if len(x.shape) == 1:
 		x = np.array([x])
 
+	try:
+		len(b)
+	except TypeError:
+		b = b * np.ones(x.shape[0])
+
+	if len(b) != x.shape[0]:
+		raise ValueError("len(b) != # of rows in x")
+
 	maxdur = 0.
 	inf_vals = np.array([])
 	total_exposure = np.zeros(len(x[0]))
-	for row in x:
+	for i,row in enumerate(x):
 		inf_times = np.where(row == infstate)[0]
 		infdur = len(inf_times)
 		if infdur == 0:
@@ -85,9 +93,9 @@ def mass_action_weibull_exposure(x, b, q1, x1, q2, x2, infstate = 2):
 			inf_vals = qcdf(np.arange(1., infdur+1), q1, x1, q2, x2) - qcdf(np.arange(0., infdur), q1, x1, q2, x2)
 			maxdur = infdur
 		#print("infdur", infdur, "maxdur", maxdur)
-		total_exposure[start_time:] += inf_vals[0:infdur]
+		total_exposure[start_time:] += b[i] * inf_vals[0:infdur]
 
-	return b * total_exposure
+	return total_exposure
 
 def grouped_weibull_exposure(x, groups, b, q1, x1, q2, x2, infstate = 2):
 	#print("INSIDE GROUP")
