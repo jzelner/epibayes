@@ -61,7 +61,11 @@ def ge_test():
 ####################################
 #Deterministic for weibull within-group inf profiles
 def grouped_weibull_profile(sm, groups, b, q1, x1, q2, x2, infstate):
-	print("Grouped", b, x1, x2)
+	# try:
+	# 	len(b)
+	# 	print("Grouped", np.mean(1500*b), np.var(1500*b), x1, x2)
+	# except TypeError:
+	# 	print("Grouped", b, x1, x2)
 	return weibull.grouped_weibull_exposure(sm, groups, b, q1, x1, q2, x2, infstate = infstate)
 
 def GroupedWeibullExposures(name, sm, groups, b, q1, x1, q2, x2, infstate = 2, trace = False):

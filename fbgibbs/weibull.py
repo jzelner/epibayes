@@ -102,11 +102,20 @@ def grouped_weibull_exposure(x, groups, b, q1, x1, q2, x2, infstate = 2):
 	maxdur = 0.
 	inf_vals = np.array([])
 
+	try:
+		len(b)
+	except TypeError:
+		b = b * np.ones(x.shape[0])
+
+	if len(b) != x.shape[0]:
+		raise ValueError("len(b) != # of rows in x")
+
 	ge = []
 	for g in groups:
 		total_exposure = np.zeros(len(x[0]))
 		#print("GROUP", g)
 		for i,row in enumerate(x[g,:]):
+			ind_id = g[i]
 			inf_times = np.where(row == infstate)[0]
 			#print(i, "inf times", inf_times)
 			#print(row)
@@ -121,8 +130,8 @@ def grouped_weibull_exposure(x, groups, b, q1, x1, q2, x2, infstate = 2):
 			# print(infdur, len(total_exposure), start_time)
 			# print(total_exposure[start_time:])
 			# print(inf_vals[0:infdur])
-			total_exposure[start_time:] += inf_vals[0:infdur]
-		ge.append(b*total_exposure)
+			total_exposure[start_time:] += b[ind_id] * inf_vals[0:infdur]
+		ge.append(total_exposure)
 	#print("TOTAL EX", ge[0]/b)
 	return np.array(ge)
 
