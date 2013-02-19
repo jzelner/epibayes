@@ -45,6 +45,10 @@ def qdist(x, q1, x1, q2, x2):
 	return PDF(x, a, b)
 
 def qcdf(x, q1, x1, q2, x2):
+	q1 = float(q1)
+	x1 = float(x1)
+	q2 = float(q2)
+	x2 = float(x2)
 	try:
 		len(x)
 	except TypeError:
@@ -75,35 +79,43 @@ def mass_action_weibull_exposure(x, b, q1, x1, q2, x2, infstate = 2):
 			continue
 		start_time = inf_times[0]
 		if infdur > maxdur:
-			inf_vals = np.append(inf_vals, np.diff(qcdf(np.arange(maxdur, infdur+1, dtype = float), q1, x1, q2, x2)))
+			#inf_vals = np.append(inf_vals, np.diff(qcdf(np.arange(maxdur, infdur+1, dtype = float), q1, x1, q2, x2)))
+			
+			# inf_vals = np.diff(qcdf(np.arange(0, infdur+1, dtype = float), q1, x1, q2, x2))
+			inf_vals = qcdf(np.arange(1., infdur+1), q1, x1, q2, x2) - qcdf(np.arange(0., infdur), q1, x1, q2, x2)
 			maxdur = infdur
-		
+		#print("infdur", infdur, "maxdur", maxdur)
 		total_exposure[start_time:] += inf_vals[0:infdur]
 
 	return b * total_exposure
 
 def grouped_weibull_exposure(x, groups, b, q1, x1, q2, x2, infstate = 2):
+	#print("INSIDE GROUP")
 	maxdur = 0.
 	inf_vals = np.array([])
 
 	ge = []
 	for g in groups:
 		total_exposure = np.zeros(len(x[0]))
-		for row in x[g]:
+		#print("GROUP", g)
+		for i,row in enumerate(x[g,:]):
 			inf_times = np.where(row == infstate)[0]
+			#print(i, "inf times", inf_times)
+			#print(row)
 			infdur = len(inf_times)
 			if infdur == 0:
 				continue
 			start_time = inf_times[0]
 			if infdur > maxdur:
-				inf_vals = np.append(inf_vals, np.diff(qcdf(np.arange(maxdur, infdur+1, dtype = float), q1, x1, q2, x2)))
+				#inf_vals = np.append(inf_vals, np.diff(qcdf(np.arange(maxdur, infdur+1, dtype = float), q1, x1, q2, x2)))
+				inf_vals = qcdf(np.arange(1., infdur+1), q1, x1, q2, x2) - qcdf(np.arange(0., infdur), q1, x1, q2, x2)
 				maxdur = infdur
-
-			print(inf_vals[0:infdur])
-			print(total_exposure[start_time:])
+			# print(infdur, len(total_exposure), start_time)
+			# print(total_exposure[start_time:])
+			# print(inf_vals[0:infdur])
 			total_exposure[start_time:] += inf_vals[0:infdur]
 		ge.append(b*total_exposure)
-
+	#print("TOTAL EX", ge[0]/b)
 	return np.array(ge)
 
 

@@ -8,6 +8,7 @@ import weibull
 ###################################
 #Stochastic for state matrix. 
 def sm_logp(value):
+	print("STATE MATRIX", np.unique(value))
 	return 0.0
 
 def StateMatrix(name, sm, trace = False):
@@ -60,6 +61,7 @@ def ge_test():
 ####################################
 #Deterministic for weibull within-group inf profiles
 def grouped_weibull_profile(sm, groups, b, q1, x1, q2, x2, infstate):
+	print("Grouped", b, x1, x2)
 	return weibull.grouped_weibull_exposure(sm, groups, b, q1, x1, q2, x2, infstate = infstate)
 
 def GroupedWeibullExposures(name, sm, groups, b, q1, x1, q2, x2, infstate = 2, trace = False):
@@ -142,6 +144,8 @@ def StaticTransitionMatrix(name, epsilon, gamma, trace = False):
 def tmat_test():
 	tm = StaticTransitionMatrix("TM", 0.5, 0.5)
 	print("Transition Matrix", tm.value)
+
+
 
 ##########################################
 #Deterministic that generates a list of completed transition
@@ -350,6 +354,70 @@ def state_metropolis_test():
 	sm = StateMetropolis(st, groups, init_probs, emission, obs, ftm)
 	sm.propose()
 	sm.reject()	
+
+##################################################
+#Gibbs step method for underlying state
+class StateGibbs(pymc.Metropolis):
+
+	def __init__(self, stochastic, groups, init_probs, emission, obs, tmat, *args, **kwargs):
+		self.init_probs = init_probs
+		self.emission = emission
+		self.obs = obs
+		self.tmat = tmat
+		self._id = "StateGibbs"
+		self._tuning_info = []
+		#get row indices of individuals whose state can be manipulated
+		#at this point, just check and see if the 0th item is a 0; if not
+		#then it can be manipulated
+		pymc.Metropolis.__init__(self, stochastic, *args, **kwargs)
+		self.sample_indices = []
+		for i,row in enumerate(self.obs):
+			if -1 in row:
+				self.sample_indices.append(i)
+
+		#Create a reverse lookup to get the group index from the row index
+		self.group_lookup = {}
+		for i,g in enumerate(groups):
+			for j,m in enumerate(g):
+				self.group_lookup[m] = i
+
+
+
+	@classmethod
+	def competence(self,s):
+		return 0
+
+	def current_state(self):
+		return {}
+
+	def step(self):
+		#copy the state matrix
+		new_value = np.copy(self.stochastic.value)
+		#draw an individual to sample
+		sample_index = random.sample(self.sample_indices,25)
+
+		self.hf = 0.0
+		for si in sample_index:
+			#grab the observation 
+			obs = self.obs[si]
+
+			#get the transition matrix for the sampled individual
+			tm = self.tmat.value[self.group_lookup[si]]
+			st = new_value[si]
+
+			s_x, lv, tv = hmm.fbg_propose(st, self.init_probs, self.emission, obs, tm)
+			# print("Obs:", obs)
+			# print("From:", new_value[si])
+
+			new_value[si] = s_x
+
+			# print("To:", new_value[si])
+
+		self.value = new_value
+
+
+
+
 
 def main():
 	#Test state matrix stochastic

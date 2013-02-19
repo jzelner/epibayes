@@ -60,7 +60,6 @@ def group_exposure(x, b0, bg, groups, infstate = 2):
 
 def corrected_group_exposures(ma_exposure, l1_l0_exposure, l1_exposure):
 	corrected_l0 = np.array([ma_exposure - l1_l0 for l1_l0 in l1_l0_exposure])
-	print(corrected_l0)
 	return corrected_l0 + l1_exposure
 
 
@@ -116,7 +115,7 @@ def sampling_probabilities(x, tmat):
 #takes a vector of exposures and returns num_exposed * (1 - p_inf)
 def escape_exposure(n, exposure):
 	e_prob = n * np.sum(-exposure)
-	#print("ESCAPE", e_prob)
+	print("ESCAPE", e_prob)
 	return e_prob
 
 def main():
