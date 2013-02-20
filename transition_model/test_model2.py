@@ -76,10 +76,8 @@ def runModel(A, X, Beta, T_r, N, vector=False):
                  [0,0,0,0,0]]), len(states))
         Xv = binaryOfIndexed(X, len(states))
         Av = binaryOfIndexed(A, len(routes))
-        
-
-        
     else:
+    
         # each entry Sigma[i,j] is a set of states that will move a person in state[i] to state[j]
         Sigma = np.array([[set([]), set([I]), set([]), set([])],
                   [set([]), set([]), set([]), set([])],
@@ -87,10 +85,8 @@ def runModel(A, X, Beta, T_r, N, vector=False):
                   [set([]), set([]), set([]), set([])]])
 
         # lambda function for calculating force of infection from person i in state X[i][t] to state s2 at time t
-        force = lambda s2, i, t : sum(( sum( ( Beta[A[i,j],t]*int(X[j,t] == s2) for j in range(N) )) for s in Sigma[X[i,t],s2] ))
-        
-        
-        
+        force = lambda s2, i, t : sum(( sum( ( Beta[A[i,j],t]*int(X[j,t] == s2) for j in xrange(N) )) for s in Sigma[X[i,t],s2] ))        
+
         # lambda function for calculating total force of infection on person i
         lambda_all = lambda i, t: sum([ force(s2, i, t) for s2 in states ])
 
@@ -140,11 +136,11 @@ def runModel(A, X, Beta, T_r, N, vector=False):
             
             
 ### HMM variables
-N = 5                      # number of people
-index = 1                   # number of index cases
-escape = 1                 # number of people still susceptible
-T = 10                      # length of observation window (days)
-dt = .5                     # stepsize
+N = 19                       # number of people
+index = 3                    # number of index cases
+escape = 2                   # number of people still susceptible
+T = 10                       # length of observation window (days)
+dt = .5                      # stepsize
 nSteps = int(T/dt)           # number of steps
 
 # state matrix, NxT, of "actual" states of people (will be guessed in FB)
@@ -160,8 +156,8 @@ np.fill_diagonal(A, 0) # fill diagonals with zero so that cannot infect self
 binaryOfIndexed(A, len(routes))
 
 
-#print X
-#print A
+print X
+print A
 
 # Array of beta values
 beta_s0 = .01
