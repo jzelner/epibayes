@@ -149,7 +149,6 @@ def backward_propose(x,forwardProbs, tm):
 
 		backward_prob = forwardProbs[i]*ns_p
 		backward_prob /= np.sum(backward_prob)
-
 		backward_prob_x = forwardProbs[i]*x_ns_p
 		backward_prob_x /= np.sum(backward_prob_x)
 
@@ -162,8 +161,6 @@ def backward_propose(x,forwardProbs, tm):
 
 	sampledStates.reverse()
 	return (sampledStates, last_val_lprob, this_val_lprob)
-
-
 
 def fbg_sample(initProbs, emission, obs, pr_tm):
 	forwardProbs = forward(initProbs, emission, obs, pr_tm)
