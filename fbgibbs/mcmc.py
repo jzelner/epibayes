@@ -315,14 +315,13 @@ class StateMetropolis(pymc.Metropolis):
 			#print(s_x)
 		print("HF =", self.hf)
 			
-		self.value = new_value
+		self.stochastic.value = new_value
 
 	def hastings_factor(self):
 		return self.hf
 
 	def reject(self):
-		#print("rejecting")
-		self.value = self.old_value
+		self.stochastic.value = self.old_value
 
 def state_metropolis_test():
 	l0_b = 0.02
@@ -417,7 +416,7 @@ class StateGibbs(pymc.Metropolis):
 
 			# print("To:", new_value[si])
 
-		self.value = new_value
+		self.stochastic.value = new_value
 
 
 
