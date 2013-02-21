@@ -117,6 +117,7 @@ def escape_exposure(n, exposure):
 	e_prob = n * np.sum(-exposure)
 	return e_prob
 
+
 def main():
 	tm, x, groups = setup_states()
 	ge = group_exposure(x, 0.009, 0.5, groups)
@@ -127,6 +128,8 @@ def main():
 			sp += sampling_probabilities(x[g], gm[i])
 		print(sp)
 	return gm
+
+
 
 if __name__ == '__main__':
 	main()

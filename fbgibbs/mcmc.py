@@ -8,7 +8,7 @@ import weibull
 ###################################
 #Stochastic for state matrix. 
 def sm_logp(value):
-	print("STATE MATRIX", np.unique(value))
+	#print("STATE MATRIX", np.unique(value))
 	return 0.0
 
 def StateMatrix(name, sm, trace = False):
@@ -42,7 +42,7 @@ def ma_test():
 ###################################
 #Deterministic for within-group exposures
 def grouped_exposures(sm, b, groups, infstate):
-	print("B", b)
+	#print("B", b)
 	return sp_np.grouped_exposure(sm, b, groups, infstate = infstate)
 
 def GroupedExposures(name, b, sm, groups, infstate = 2, trace = False):
@@ -188,7 +188,6 @@ def group_sampling_prob(sm, ftm):
 	logp = 0.0
 	for g in ftm:
 		logp += sp_np.sampling_probabilities(sm, g)
-	print("GRSP", logp) 
 	return logp
 
 def GroupSamplingProbability(name, sm, ftm):

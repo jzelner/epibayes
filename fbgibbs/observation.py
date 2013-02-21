@@ -2,6 +2,7 @@ import numpy as np
 import random
 import pymc
 import mcmc
+import hmm_np as hmm
 
 #############################
 #Log-likelihood of observation matrix for incidence
@@ -69,10 +70,29 @@ def random_uniform_obs(obs, num_steps, prev_state, incidence):
 
 	return random_incidence
 
+def expand_obs_incidence_first(obs, num_steps, prev_state, incidence):
+	num_col = num_steps * obs.shape[1]
+	num_row = obs.shape[0]
+	random_incidence = np.zeros((num_row, num_col), dtype = int)
+	inc_indices = np.where(obs == 1)
+	row_indices = inc_indices[0]
+	col_indices = inc_indices[1]
+	for ind,i in enumerate(row_indices):
+		j = col_indices[ind]
+		s_index = j*num_steps
+		e_index = s_index + num_steps
+		sample_j = s_index
+		part_obs_row = -1 * np.ones(num_col, dtype = int)
+		part_obs_row[sample_j] = incidence
+		if sample_j > 0:
+			part_obs_row[sample_j-1] = prev_state
+		random_incidence[i] = part_obs_row
+
+	return random_incidence
+
 def single_random_uniform_obs(obs, num_steps, prev_state, incidence):
 	num_col = num_steps * len(obs)
 	random_incidence = -1*np.ones(num_col, dtype = int)
-	print"ROBS", (obs)
 	j = np.where(obs == 1)[0][0]
 
 	s_index = j*num_steps
@@ -98,7 +118,7 @@ def uniform_obs_logp_test():
 ##############################################
 #Pymc stochastic mapping the observations to the uncertain observation matrix
 def UniformIntervalObservation(name, obs, num_steps, prev_state = 1, incidence = 2, value = None):
-	return pymc.Stochastic(name = name, doc = "UniformIntervalObservation", value = value, cache_depth = 2, parents = {"obs":obs, "num_steps":num_steps, "prev_state":prev_state, "incidence":incidence}, logp = uniform_obs_logp, random = random_uniform_obs, dtype = int)
+	return pymc.Stochastic(name = name, doc = "UniformIntervalObservation", value = value, cache_depth = 2, parents = {"obs":obs, "num_steps":num_steps, "prev_state":prev_state, "incidence":incidence}, logp = uniform_obs_logp, dtype = int)
 
 def uniform_obs_test():
 	x = np.array([[1,0,0,0,0,0],
@@ -112,8 +132,7 @@ def uniform_obs_test():
 
 def expanded_starting_values(obs, num_steps, prev_state, incidence):
 	#sample a random starting matrix
-	start_obs = random_uniform_obs(obs, num_steps, prev_state, incidence)
-	print("SO", start_obs)
+	start_obs = expand_obs_incidence_first(obs, num_steps, prev_state, incidence)
 	#fill in the entries so that all states after the incident state 
 	#are equal to the incidence value. This ensures that the sampler starts
 	#on a nonzero part of the likelihood surface
@@ -126,7 +145,8 @@ def expanded_starting_values(obs, num_steps, prev_state, incidence):
 
 		start_incidence = np.where(row == incidence)[0][0]
 		row[start_incidence:] = incidence
-		row[0:start_incidence-1] = 0
+		if start_incidence >0:
+			row[0:start_incidence-1] = 0
 		start_sm.append(row)
 
 	return (start_obs, np.array(start_sm))
@@ -146,7 +166,7 @@ class ObservationStateMetropolis(pymc.StepMethod):
 			len(stochastic)
 		except TypeError:
 			raise TypeError("ObservationStateMetropolis must receive both the state matrix and observation matrix!")
-
+		self._id = "ObservationStateMetropolis"
 		self.init_probs = init_probs
 		self.emission = emission
 		self.tmat = tmat
@@ -155,6 +175,9 @@ class ObservationStateMetropolis(pymc.StepMethod):
 		self.num_steps = num_steps
 		self.prev_state = prev_state
 		self.incidence = incidence
+		self.rejected = 0
+		self.accepted = 0
+		self.adaptive_scale_factor = 1.
 		#get row indices of individuals whose state can be manipulated
 		#at this point, just check and see if the 0th item is a 0; if not
 		#then it can be manipulated
@@ -181,10 +204,12 @@ class ObservationStateMetropolis(pymc.StepMethod):
 		new_state_value = np.copy(self.state_stoch.value)
 
 		#Get the number of rows to sample from
-		num_to_sample = 1#max(1, int(np.round(self.adaptive_scale_factor)))
+		num_to_sample = max(3, 3*int(np.round(self.adaptive_scale_factor)))
 
 		#draw individual indices to sample
 		sample_index = random.sample(self.sample_indices,num_to_sample)
+		if self.verbose > 0:
+			print("Sampling %d" % num_to_sample)
 
 		self.hf = 0.0
 		for si in sample_index:
@@ -193,36 +218,107 @@ class ObservationStateMetropolis(pymc.StepMethod):
 			last_obs = self.old_obs_value[si]
 
 			#sample a new observation value
-			print(last_obs, self.num_steps, self.prev_state, self.incidence)
-			new_obs = single_random_uniform_obs(last_obs, self.num_steps, self.prev_state, self.incidence)
+			#print(last_obs, self.num_steps, self.prev_state, self.incidence)
+			
+			#this needs to be changed to resample the new observation from the original one, i.e. the one
+			#in 
+			#print("O",self.obs_stoch.parents["obs"])
+			new_obs = single_random_uniform_obs(self.obs_stoch.parents["obs"][si], self.num_steps, self.prev_state, self.incidence)
+
 			new_obs_value[si] = new_obs
 
 			#get the transition and current state matrices for the sampled individual
 			tm = self.tmat.value[self.group_lookup[si]]
-			st = new_value[si]
+			st = new_state_value[si]
+
+			if self.verbose >=2:
+				print("From Obs:", last_obs, np.where(last_obs == 2), len(last_obs))
+				print("From State:", st, np.where(st == 2), len(st))
 
 			#get the proposal probability of the current state matrix using the current
 			#transition matrix as the proposal density
-			lv = hmm.fbg_propose(st, self.init_probs, self.emission, last_obs, tm)[2]
+			lv = hmm.fbg_propose(st, self.init_probs, self.emission, last_obs, tm)[1]
 
 			#propose a new state matrix that goes with the new observation
-			s_x, tv, _ = hmm.fbg_propose(st, self.init_probs, self.emission, new_obs)
+			s_x, _, tv = hmm.fbg_propose(st, self.init_probs, self.emission, new_obs, tm)
 
-			print("From Obs", last_obs, " To Obs:", new_obs)
-			print("From State:", st)
-			print("To State:", s_x)
+			if self.verbose >=2:
+				print("Old ll:", lv, tv)
+				print("To   Obs:", new_obs, len(new_obs))
+				print("To State:", s_x)
 
 			#set the hastings factor equal to the proposal ratio p(s_t | o_t) / p(s_t+1 | o_t+1)
 			self.hf += lv-tv
 			new_state_value[si] = s_x
-
-		print("HF =", self.hf)
+		if self.verbose >=2:
+			print("HF =", self.hf)
 			
-		self.obs_stoch.value = self.new_obs_value
-		self.state_stoch.value = self.new_state_value
+		self.obs_stoch.value = new_obs_value
+		self.state_stoch.value = new_state_value
 
 	def hastings_factor(self):
 		return self.hf
+
+	def step(self):
+		"""
+		The default step method applies if the variable is floating-point
+		valued, and is not being proposed from its prior.
+		"""
+
+		# Probability and likelihood for s's current value:
+
+		if self.verbose>2:
+			print_()
+			print_(self._id + ' getting initial logp.')
+
+		logp = self.logp_plus_loglike
+
+		if self.verbose>2:
+			print_(self._id + ' proposing.')
+			
+		# Sample a candidate value
+		self.propose()
+
+		# Probability and likelihood for s's proposed value:
+		try:
+		   logp_p = self.logp_plus_loglike
+		except pymc.ZeroProbability:
+
+			# Reject proposal
+			if self.verbose>2:
+				print_(self._id + ' rejecting due to ZeroProbability.')
+			self.reject()
+
+			# Increment rejected count
+			self.rejected += 1
+
+			if self.verbose>2:
+				print_(self._id + ' returning.')
+			return
+
+		if self.verbose>2:
+			print_('logp_p - logp: ', logp_p - logp)
+
+		HF = self.hastings_factor()
+
+		# Evaluate acceptance ratio
+		if np.log(np.random.random()) > logp_p - logp + HF:
+
+			# Revert s if fail
+			self.reject()
+
+			# Increment rejected count
+			self.rejected += 1
+			if self.verbose >= 2:
+				print(self._id + ' rejecting')
+		else:
+			# Increment accepted count
+			self.accepted += 1
+			if self.verbose >= 2:
+				print(self._id + ' accepting')
+
+		if self.verbose > 2:
+			print(self._id + ' returning.')
 
 	def reject(self):
 		self.obs_stoch.value = self.old_obs_value
@@ -231,8 +327,8 @@ class ObservationStateMetropolis(pymc.StepMethod):
 def state_metropolis_test():
 	l0_b = 0.02
 	l1_b = 0.2
-	e = 0.9
-	g = 0.5
+	epsilon = 0.9
+	gamma = 0.5
 	num_steps = 4
 
 	obs = np.array([[1,0,0,0,0,0],
@@ -262,10 +358,13 @@ def state_metropolis_test():
 	l0_ge = mcmc.GroupedExposures("L0_groups", l0_b, ex_sm, groups)	
 	l1_ge = mcmc.GroupedExposures("L1_groups", l1_b, ex_sm, groups)
 	l1_ce = mcmc.CorrectedGroupExposures("Corr_L1", ma, l0_ge, l1_ge)
-	stm = mcmc.StaticTransitionMatrix("TM", e, g)
+	stm = np.array([[0.0, 0.0, 0.0, 0.0], 
+					[0.0, 0.0, epsilon, 0.0],
+					[0.0, 0.0, 0.0, gamma],
+					[0.0, 0.0, 0.0, 0.0]])
 	ftm = mcmc.FullTransitionMatrix("Full", stm, l1_ce)
 	sm = ObservationStateMetropolis([r_obs, sm], groups, init_probs, emission, ftm, num_steps)
-	sm.propose()
+	sm.step()
 	# sm.reject()	
 
 
