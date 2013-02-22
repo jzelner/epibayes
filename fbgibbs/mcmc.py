@@ -6,13 +6,18 @@ import hmm_np as hmm
 import weibull
 
 ###################################
+#Stochastic for switching between a Gamma-distributed vector of 
+#random effects with mean R and a homogeneous vector in which all
+#elements = R
+
+###################################
 #Stochastic for state matrix. 
 def sm_logp(value):
 	#print("STATE MATRIX", np.unique(value))
 	return 0.0
 
-def StateMatrix(name, sm, trace = False):
-	return pymc.Stochastic(name = name, doc = "State Matrix", value = sm, observed = False, cache_depth = 2, parents = {}, trace = trace, logp = sm_logp, dtype = int)
+def StateMatrix(name, sm, trace = False, observed = False):
+	return pymc.Stochastic(name = name, doc = "State Matrix", value = sm,  cache_depth = 2, parents = {}, trace = trace, logp = sm_logp, dtype = int, observed = observed)
 
 def sm_test():
 	x = np.array([[2,2,2,3,3,3],
@@ -149,6 +154,56 @@ def tmat_test():
 	tm = StaticTransitionMatrix("TM", 0.5, 0.5)
 	print("Transition Matrix", tm.value)
 
+##################################
+#Deterministic that generates transition matrices w/Erlang distributed 
+#latent periods w/o a recovery period
+def erlang_latent_tmatrix(epsilon, num_stages):
+	#This is for transition matrices where infectiousness
+	#is an absorbing state, so we have 1 col for transitions
+	#from S, then num_stages row/col for transitions from the 
+	#states of latency and a final one for I
+	num_col = 2 + num_stages
+	tmat = np.zeros((num_col, num_col))
+
+	#rate of transition through each sub-stage is 
+	#epsilon*num_stages
+	t_rate = epsilon*num_stages
+	for i in xrange(1, 1+num_stages):
+		tmat[i,i] = t_rate
+
+	return tmat
+
+def StaticErlangLatentTmat(name, epsilon, num_stages, trace = False):
+	return pymc.Deterministic(name = name, doc = "ErlangLatentOnlyTransitionMatrix", parents = {"epsilon": epsilon, "num_stages":num_stages}, eval = erlang_latent_tmatrix, cache_depth = 2, trace = trace)
+
+def erlang_tmat_test():
+	epsilon = 0.5
+	num_stages = 4
+	tm = StaticErlangLatentTmat("erl", epsilon, num_stages)
+	print(tm.value)
+
+###############################################
+#Deterministic for exposure pulse
+def pulsed_exposure(t, rate, series_length, pulse_duration):
+	exposure = np.zeros(series_length)
+	for i in xrange(pulse_duration):
+		exposure[t+i] = rate
+	return exposure
+
+def PulsedExposure(name, t, rate, series_length, pulse_duration = 1, trace = False):
+	return pymc.Deterministic(name = name, doc = "PulsedExposure", parents = {"rate": rate, "series_length":series_length, "pulse_duration":pulse_duration, "t":t}, eval = pulsed_exposure, cache_depth = 2, trace = trace)
+
+def pulsed_exposure_test():
+	pe = PulsedExposure("PE", 0, 0.5, 10)
+	print(pe.value)
+
+####################
+#Deterministic to add two series of the same dimension
+def series_sum(x1, x2):
+	return x1 + x2
+
+def SeriesSum(name, x1, x2, trace = False):
+	return pymc.Deterministic(name = name, doc = "PulsedExposure", parents = {"x1": x1, "x2":x2}, eval = series_sum, cache_depth = 2, trace = trace)
 
 
 ##########################################
@@ -435,6 +490,7 @@ def main():
 	state_metropolis_test()
 	gw_test()
 	maw_test()
-
+	erlang_tmat_test()
+	pulsed_exposure_test()
 if __name__ == '__main__':
 	main()

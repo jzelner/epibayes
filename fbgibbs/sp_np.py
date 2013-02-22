@@ -114,7 +114,7 @@ def sampling_probabilities(x, tmat):
 
 #takes a vector of exposures and returns num_exposed * (1 - p_inf)
 def escape_exposure(n, exposure):
-	e_prob = n * np.sum(-exposure)
+	e_prob = -1*(n * np.sum(exposure))
 	return e_prob
 
 
