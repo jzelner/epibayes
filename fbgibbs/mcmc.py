@@ -140,7 +140,6 @@ def cge_test():
 #Deterministic that that embeds scalar parameters into a transition 
 #matrix
 def tmatrix(epsilon, gamma):
-	print("e: %0.2f, g: %0.2f" % (epsilon, gamma))
 	tmat = np.array([[0.0, 0.0, 0.0, 0.0], 
 					[0.0, 0.0, epsilon, 0.0],
 					[0.0, 0.0, 0.0, gamma],
@@ -152,6 +151,22 @@ def StaticTransitionMatrix(name, epsilon, gamma, trace = False):
 
 def tmat_test():
 	tm = StaticTransitionMatrix("TM", 0.5, 0.5)
+	print("Transition Matrix", tm.value)
+
+#####################################
+#Deterministic that that embeds scalar parameters into an SIR transition 
+#matrix
+def sir_tmatrix(gamma):
+	tmat = np.array([[0.0, 0.0, 0.0], 
+					[0.0, 0.0, gamma],
+					[0.0, 0.0, 0.0]])
+	return tmat
+
+def SIRTransitionMatrix(name, gamma, trace = False):
+	return pymc.Deterministic(name = name, doc = "TransitionMatrix", parents = {"gamma":gamma}, eval = sir_tmatrix,cache_depth = 2, trace = trace)
+
+def sir_tmat_test():
+	tm = SIRTransitionMatrix("TM", 0.5)
 	print("Transition Matrix", tm.value)
 
 ##################################
@@ -360,14 +375,14 @@ class StateMetropolis(pymc.Metropolis):
 			st = new_value[si]
 
 			s_x, lv, tv = hmm.fbg_propose(st, self.init_probs, self.emission, obs, tm)
-			print("Obs:"), obs
-			print("From:", st)
-			print("To:", s_x)
+			#print("Obs:"), obs
+			#print("From:", st)
+			#print("To:", s_x)
 			self.hf += lv-tv
 			new_value[si] = s_x
 			#print(obs)
 			#print(s_x)
-		print("HF =", self.hf)
+		#print("HF =", self.hf)
 			
 		self.stochastic.value = new_value
 
@@ -492,5 +507,6 @@ def main():
 	maw_test()
 	erlang_tmat_test()
 	pulsed_exposure_test()
+	sir_tmat_test()
 if __name__ == '__main__':
 	main()
