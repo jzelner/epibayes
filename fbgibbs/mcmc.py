@@ -358,6 +358,7 @@ def full_tm_test():
 #Field potential giving logp of state for groups, given
 #exposures
 
+
 def group_sampling_prob(sm, ftm, groups):
     '''
         :param ftm:     full transition matrix
@@ -367,11 +368,9 @@ def group_sampling_prob(sm, ftm, groups):
         :param groups:  lists of people in groups
     '''
     logp = 0.0
-    
-    
+
     for group_index, g in enumerate(ftm):
         logp += sp_np.sampling_probabilities(sm[groups[group_index]], g)
-    print("GRSP", logp) 
     return logp
 
 def GroupSamplingProbability(name, sm, ftm, groups):
@@ -393,7 +392,6 @@ def GroupSamplingProbability(name, sm, ftm, groups):
 
     return pymc.Potential(name = name, doc = "GroupSamplingProbability", parents = {"sm":sm, "ftm":ftm, "groups":groups}, logp = group_sampling_prob, cache_depth = 2)
 
-
 def gr_sp_test():
     l0_b = 0.02
     l1_b = 0.2
@@ -414,6 +412,7 @@ def gr_sp_test():
     ftm = FullTransitionMatrix("Full", stm, l1_ce)
     gsp = GroupSamplingProbability("GSP", x, ftm)
     print("Group sampling prob", gsp.logp)
+
 
 ############################################
 #Field potential for likelihood contribution of 
