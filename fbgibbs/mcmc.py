@@ -251,38 +251,41 @@ def full_tm_test():
 	ftm = FullTransitionMatrix("Full", stm, l1_ce)
 	print("Full Transition Matrix:", ftm.value)
 
-##########################################
-#Field potential giving logp of state for groups, given
-#exposures
-def group_sampling_prob(sm, ftm):
-	logp = 0.0
-	for g in ftm:
-		logp += sp_np.sampling_probabilities(sm, g)
-	return logp
+# ##########################################
+# #Field potential giving logp of state for groups, given
+# #exposures
+def group_sampling_prob(sm, ftm, groups):
+    '''
+        :param ftm:     full transition matrix
+        :type ftm:      \|Groups\|xTx\|States\|x\|States\|
+        :param sm:      state matrix
+        :type sm:       \|N_inf\|xT
+        :param groups:  lists of people in groups
+    '''
+    logp = 0.0
+    for group_index, g in enumerate(ftm):
+        logp += sp_np.sampling_probabilities(sm[groups[group_index]], g)
+    return logp
 
-def GroupSamplingProbability(name, sm, ftm):
-	return pymc.Potential(name = name, doc = "GroupSamplingProbability", parents = {"sm":sm, "ftm":ftm}, logp = group_sampling_prob, cache_depth = 2)
+def GroupSamplingProbability(name, sm, ftm, groups):
+    '''
+        Field potential giving logp of state for groups, given exposures
 
-def gr_sp_test():
-	l0_b = 0.02
-	l1_b = 0.2
-	e = 0.9
-	g = 0.5
+        :param name: pymc variable name
+        :param sm:   State matrix
+        :type sm:    pymc.Deterministic
+        :param ftm:  Full Transition Matrix
+        :type ftm:   pymc.Deterministic
+        :param groups: lists of people in groups
+        
+        :rtype: pymc.Potential
+        
+        .. todo:: Why is it only Group sampling probability? not individual sampling probability?
+    
+    '''
 
-	x = np.array([[2,2,2,3,3,3],
-			[0,1,2,2,2,2],
-			[0,0,0,1,2,2],
-			[0,0,0,0,0,0]])
-	groups = [np.array([0,1]), np.array([2,3])]
+    return pymc.Potential(name = name, doc = "GroupSamplingProbability", parents = {"sm":sm, "ftm":ftm, "groups":groups}, logp = group_sampling_prob, cache_depth = 2)
 
-	ma = MassActionExposure("MA", l0_b, x)
-	l0_ge = GroupedExposures("L0_groups", l0_b, x, groups)	
-	l1_ge = GroupedExposures("L1_groups", l1_b, x, groups)
-	l1_ce = CorrectedGroupExposures("Corr_L1", ma, l0_ge, l1_ge)
-	stm = StaticTransitionMatrix("TM", e, g)
-	ftm = FullTransitionMatrix("Full", stm, l1_ce)
-	gsp = GroupSamplingProbability("GSP", x, ftm)
-	print("Group sampling prob", gsp.logp)
 
 ############################################
 #Field potential for likelihood contribution of 
