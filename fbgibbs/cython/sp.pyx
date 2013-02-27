@@ -56,7 +56,7 @@ def group_tmats(np.ndarray[DTYPE_ft, ndim = 2] exposure, np.ndarray[DTYPE_ft, nd
 	cdef int ct_len
 	cdef int gm_len
 	cdef int exposure_len
-	# cdef np.ndarray[DTYPE_ft, ndim = 2] tot
+	#cdef np.ndarray[DTYPE_ft, ndim = 2] tot
 	#Loop through every group's exposures
 	for g in range(num_rows):
 		e = exposure[g]
