@@ -68,49 +68,58 @@ def corrected_group_exposures(ma_exposure, l1_l0_exposure, l1_exposure):
 #of transition rates. Returns a list of transition matrices
 #consisting of the probabilities of each state transition 
 #over time for each group.
-def group_tmats(exposure, tmat):
-	gmats = []
-	for g,e in enumerate(exposure):
-		gmat = np.array([tmat]*len(e))
+try:
+	import epibayes.fbgibbs.cython.sp as sp
+	group_tmats = sp.group_tmats
+except ImportError:
+	def group_tmats(exposure, tmat):
+		gmats = []
+		for g,e in enumerate(exposure):
+			gmat = np.array([tmat]*len(e))
 
-		#Set the S->E element to the exposure rate
-		gmat[:,0,1] = e
+			#Set the S->E element to the exposure rate
+			gmat[:,0,1] = e
 
-		#Get the total rate at which individuals
-		#are transitioning out of the states in
-		#gmat
+			#Get the total rate at which individuals
+			#are transitioning out of the states in
+			#gmat
 
-		col_totals = np.sum(gmat, axis = 2)
-		leave_probs = 1.0 - np.exp(-col_totals)
-		#Go through each timeslice, each of which
-		#corresponds to an element of the column totals
-		for t,ct in enumerate(col_totals):
-			#If the row totals to > 0, then divide all
-			#of the elements by the total; this gives
-			#the proportion of the leave rate associated 
-			#with this element
-			for j,tot in enumerate(ct):
-				lp = leave_probs[t,j]
-				if tot > 0:
-					gmat[t,j] /= tot
-					gmat[t,j] *= lp
-				gmat[t,j,j] = 1.-lp
-		gmats.append(gmat)
-	return np.array(gmats)
+			col_totals = np.sum(gmat, axis = 2)
+			leave_probs = 1.0 - np.exp(-col_totals)
+			#Go through each timeslice, each of which
+			#corresponds to an element of the column totals
+			for t,ct in enumerate(col_totals):
+				#If the row totals to > 0, then divide all
+				#of the elements by the total; this gives
+				#the proportion of the leave rate associated 
+				#with this element
+				for j,tot in enumerate(ct):
+					lp = leave_probs[t,j]
+					if tot > 0:
+						gmat[t,j] /= tot
+						gmat[t,j] *= lp
+					gmat[t,j,j] = 1.-lp
+			gmats.append(gmat)
+		return np.array(gmats)
 
 #Takes a matrix of states and the transition matrix for individuals
-#in that matrix and returns the log-likelihood of 
-def sampling_probabilities(x, tmat):
-	s_prob = 0.0
-	#get the number of columns in the state matrix
-	num_col = x.shape[1]
-	for t in xrange(num_col-1):
-		from_states = x[:,t]
-		to_states = x[:,t+1]
-		#print(tmat)
-		#print(t, from_states, to_states)
-		s_prob += np.sum(np.log(tmat[t,from_states,to_states]))
-	return s_prob
+#in that matrix and returns the log-likelihood of
+try:
+	import epibayes.fbgibbs.cython.sp as sp
+	sampling_probabilities = sp.sampling_probabilities
+except ImportError: 
+	def sampling_probabilities(x, tmat):
+		s_prob = 0.0
+		#get the number of columns in the state matrix
+		num_col = x.shape[1]
+		for t in xrange(num_col-1):
+			from_states = x[:,t]
+			to_states = x[:,t+1]
+			#print(tmat)
+			s_prob += np.sum(np.log(tmat[t,from_states,to_states]))
+			#print(t, s_prob)
+
+		return s_prob
 
 #takes a vector of exposures and returns num_exposed * (1 - p_inf)
 def escape_exposure(n, exposure):

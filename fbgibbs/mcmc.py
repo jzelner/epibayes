@@ -1,6 +1,6 @@
 import pymc
 import numpy as np
-import sp_np
+import sp_np 
 import random
 import hmm_np as hmm
 import weibull
@@ -478,6 +478,7 @@ class StateGibbs(pymc.Metropolis):
 			st = new_value[si]
 
 			s_x, lv, tv = hmm.fbg_propose(st, self.init_probs, self.emission, obs, tm)
+
 			# print("Obs:", obs)
 			# print("From:", new_value[si])
 
