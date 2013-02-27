@@ -82,7 +82,10 @@ def group_tmats(exposure, tmat):
         .. todo:: group_tmats is a bottleneck, takes a ton of time for each call
         as of 2.25 it takes .15 seconds per call
     '''
-    gmats = []
+    #print exposure.shape
+    #print tmat.shape
+    gmats = np.zeros((exposure.shape[0], exposure.shape[1], tmat.shape[0], tmat.shape[1]))
+    #gmats = []
     for group,e in enumerate(exposure):
         gmat = np.array([tmat]*len(e))
 
@@ -108,8 +111,9 @@ def group_tmats(exposure, tmat):
                     gmat[t,j] /= tot
                     gmat[t,j] *= lp
                 gmat[t,j,j] = 1.-lp
-        gmats.append(gmat)
+        gmats[group] = gmat
     #print np.array(gmats).shape
+    
     return np.array(gmats)
 
 #Takes a matrix of states and the transition matrix for individuals
@@ -119,9 +123,9 @@ def sampling_probabilities(x, tmat):
         Takes a matrix of states and the transition matrix for individuals
         in that matrix and returns the log-likelihood of states occurring
         
-        :param x: states
+        :param x:    states
         :param tmat: Transition matrix
-        :rtype: float
+        :rtype:      float
         
         .. todo:: Bottleneck, mostly because a ton of call to this function 
     '''
