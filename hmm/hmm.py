@@ -99,7 +99,6 @@ all_fn = theano.function(inputs = [obs_mat, init_probs_tensor, final_probs_tenso
 
 
 if __name__ == '__main__':
-
 	#Flat prior over initial states
 	initProbs = np.array([0.5, 0.5])
 
@@ -138,6 +137,7 @@ if __name__ == '__main__':
 	#Try to compute smoothed probabilities for each 
 	#row of a matrix of observations, with same prior
 	#transmission matrix and emission probabilities
+
 	o4 = all_fn(obsb, initProbs, lastProb, tmat, emission)
 	print("Smoothed probs in bulk:")
 	print(o4)
